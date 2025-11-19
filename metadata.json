@@ -1,5 +1,5 @@
 {
-  "name": "Quizlet AI Quiz Generator",
-  "description": "An interactive web application that takes an exported Quizlet set (English words with Ukrainian translations for context) and uses the Gemini API to generate a multiple-choice quiz entirely in English.",
+  "name": "VocabCrafter AI",
+  "description": "An interactive web application that takes a vocabulary set and uses the Gemini API to generate various learning activities.",
   "requestFramePermissions": []
 }

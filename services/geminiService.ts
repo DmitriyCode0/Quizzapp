@@ -1,6 +1,7 @@
 // FIX: Import GenerateContentResponse to correctly type API responses.
 import { GoogleGenAI, Type, GenerateContentResponse } from "@google/genai";
-import { QuizTerm, Question, GapFillQuestion, CEFRLevel, TranslationQuestion, FeedbackItem, VocabularyChallenge, GrammarChallenge } from '../types';
+import { QuizTerm, Question, GapFillQuestion, CEFRLevel, TranslationQuestion, FeedbackItem, VocabularyChallenge, GrammarChallenge, Language } from '../types';
+import { grammarPools } from '../data/grammarData';
 
 if (!process.env.API_KEY) {
     throw new Error("API_KEY environment variable not set");
@@ -314,161 +315,40 @@ const translationQuizSchema = {
     required: ["questions"],
 };
 
-const getGrammarInstruction = (
-    level: 'A1' | 'A2' | 'B1' | 'B2' | 'C1' | 'C2',
-    grammarChallenge?: GrammarChallenge,
-    activityType?: 'translation_list'
-): string => {
-    const grammarPools: Record<typeof level, string[]> = {
-        'A1': [
-            "Present simple forms of ‘to be’: am/is/are", "Present simple: I do, I don’t, Do I?", "Present continuous: I’m doing, I’m not doing, Are you doing?", "Present simple or present continuous?", "Have got",
-            "Was/were: Past simple of ‘be’", "Past simple: Regular/irregular verbs", "Past simple: Negatives and questions",
-            "‘Will’ and ‘shall’: Future", "Be going to: Plans and predictions",
-            "Can, can’t: ability, possibility, permission", "The imperative: Sit down! Don’t talk!", "Would you like…? I’d like…",
-            "Verbs + to + infinitive and verbs + -ing",
-            "A/an, plurals: Singular and plural forms", "A/an, the, no article: The use of articles in English", "This, that, these, those", "Possessive adjectives and subject pronouns (I/my, you/your, etc.)", "Object pronouns vs subject pronouns: Me or I, she or her?", "A, some, any: Countable and uncountable nouns", "Much, many, a lot of, a little, a few", "Whose, possessive ‘s: Whose is this? It’s Mike’s",
-            "There is, there are / There was, there were", "There or it", "The difference between ‘this’ and ‘it’",
-            "Adjectives: old, interesting, expensive, etc.", "Adverbs of manner (slowly) or adjectives (slow)?", "Comparative adjectives: Older than, more important than, etc.", "Superlative adjectives: The oldest, the most important, etc.",
-            "Conjunctions: And, but, or, so, because",
-            "At, in, on: Prepositions of time", "At, in, on: Prepositions of place", "Next to, under, between, in front of, behind, over, etc.",
-            "Questions: Word order and question words",
-            "Adverbs of frequency with present simple", "Basic word order in English."
-        ],
-        'A2': [
-            "Present simple vs present continuous", "Present perfect: Form and use", "Present perfect or past simple?",
-            "Past simple: Form and use", "Past continuous and past simple", "Past perfect",
-            "Will vs be going to: Future", "Present continuous for future arrangements",
-            "Review of all verb tenses A2",
-            "Have to, don’t have to, must, mustn’t", "Should, shouldn’t", "Might, might not: Possibility", "May and might: What’s the difference?", "Used to, didn’t use to: Past habits and states",
-            "The different uses of the verb ‘get’", "‘Do’ vs ‘Make’: What’s the difference?", "Verbs with two objects", "Stative vs dynamic verbs", "Phrasal verbs: Transitive and intransitive",
-            "First conditional and future time clauses", "Second conditional",
-            "Present and past simple passive: be + past participle",
-            "Reported speech / Indirect speech",
-            "Expressing purpose with ‘to’ and ‘for’", "Infinitives and gerunds: Verb patterns",
-            "Subject pronouns, object pronouns, possessive pronouns", "Something, anything, nothing, etc.", "Much, many, little, few, some, any: Quantifiers", "Too, too much, too many, enough", "Most, most of, the most",
-            "Defining relative clauses: Who, which, that, where",
-            "So, neither: so am I, neither do I, etc.",
-            "Comparative and superlative adjectives and adverbs", "No longer, any longer, anymore",
-            "However, although, because, so, and time connectors",
-            "Prepositions of movement: Along, across, over, etc.", "On time vs In time, At the end vs In the end.",
-            "Asking questions in English: Question forms", "Subject questions, questions with preposition"
-        ],
-        'B1': [
-            "Past simple or present perfect?", "Present perfect simple and present perfect continuous",
-            "Past simple, past continuous, past perfect",
-            "Future forms: Will, be going to, present continuous",
-            "Have to, must, should: Obligation, prohibition, advice", "Can, could, be able to: Ability and possibility", "Modal verbs of deduction: Must, might, could, can’t", "Usually, used to, be used to, get used to", "Had better… it’s time", "Would rather & Would sooner", "B1 Phrasal verbs",
-            "First conditional, future time clauses", "Second conditional: Unreal situations", "Third conditional: Past unreal situations",
-            "Passive verb forms", "Active and passive voice",
-            "Indirect speech / Reported speech",
-            "Gerund or infinitive: Do, to do, doing",
-            "A(n), the, no article", "Reflexive pronouns: Myself, yourself", "All, both, either, neither: Quantifiers", "Any, no, none: Quantifiers", "Another, other, others, the other, the others",
-            "Defining and non-defining relative clauses",
-            "Question tags: Aren’t you? don’t you?",
-            "Comparative and superlative adjectives and adverbs", "-Ed/-ing adjectives: Adjectives from verbs", "So, such, such a, so much, so many", "Compound adjectives with numbers: ‘A two-day trip’",
-            "Clauses of contrast, purpose and reason",
-            "Verb + preposition", "Adjective + preposition", "During, for, while", "For, since, from: What’s the difference?"
-        ],
-        'B2': [
-            "Narrative tenses: All past tenses",
-            "Future continuous and future perfect",
-            "Needn’t, don’t need to, didn’t need to, needn’t have", "Past modal verbs of deduction", "Likely, unlikely, bound, definitely, probably: Probability", "Would and used to: Past habits", "Verbs of the senses: Look, sound, feel, etc.",
-            "Zero and first conditional and future time clauses", "Second and third conditionals: Unreal conditionals", "Wishes and regrets: I wish / if only",
-            "The passive voice: All tenses", "The passive with reporting verbs: It is said that…", "Have something done",
-            "Gerund or infinitive: Verb patterns", "Would rather, would prefer: Expressing preference", "Reporting verbs: Admit doing, refuse to do, etc.",
-            "Quantifiers: All, most, both, either, neither, any, no, none",
-            "Whatever, whenever, wherever, whoever, however",
-            "The … the … comparatives", "Participles as adjectives: -ed / -ing adjectives", "Adjective order", "Already, still, yet: What’s the difference?", "Pretty, rather, quite, fairly",
-            "Clauses of contrast and purpose",
-            "Indirect questions", "Position of adverbs and adverb phrases"
-        ],
-        'C1': [
-            "Future in the past",
-            "Speculation and deduction: Modal verbs and expressions",
-            "All conditionals: mixed conditionals, alternatives to if, inversion", "Mixed conditionals", "Wish, rather, if only, it’s time: unreal uses of past tenses", "Unless, even if, provided, as long as, etc.",
-            "Distancing: Expressions and passive of reporting verbs", "Passive verbs with two objects",
-            "Verb + object + infinitive/gerund: Verb patterns", "Gerunds and infinitives: Complex forms",
-            "Reflexive and reciprocal pronouns", "Compound nouns and possessive forms", "Possessive ’s with time expressions: Two hours’ walk",
-            "Relative clauses: Defining and non-defining",
-            "‘There’ and ‘it’: Preparatory subjects",
-            "Ellipsis and substitution",
-            "Modifying comparatives", "Compound adjectives in English", "Inversion with negative adverbials",
-            "Noun + Preposition collocations",
-            "Clauses of contrast, purpose, reason and result", "Discourse markers: Linking words", "Participle clauses",
-            "Cleft sentences: Adding emphasis"
-        ],
-        'C2': [
-            "Advanced conditional forms (e.g., with inversion without 'if')",
-            "Advanced passive structures (e.g., double passives)",
-            "Participle clauses (e.g., fronted participles for stylistic effect)",
-            "Complex noun phrases with multiple modifiers",
-            "Subtle modal verb usage (e.g., 'might have been doing')",
-            "Highly idiomatic phrasing and collocations",
-            "Use of rhetorical devices like inversion for emphasis",
-            "Nuanced use of aspect (perfect vs. continuous)",
-            "Prepositional phrases with abstract nouns",
-            "Advanced discourse markers for cohesion and flow"
-        ]
-    };
-
-    const pool = grammarPools[level];
-    if (!pool || pool.length === 0) {
-        return "The difficulty of the sentence structure and vocabulary should be appropriate for a CEFR B1 learner.";
-    }
-
-    const shuffled = [...pool].sort(() => 0.5 - Math.random());
-    let selectionCount;
-
-    if (activityType === 'translation_list' && grammarChallenge) {
-        switch (grammarChallenge) {
-            case 'Simple':
-                selectionCount = 3;
-                break;
-            case 'Standard':
-                selectionCount = 4;
-                break;
-            case 'Complex':
-                selectionCount = 5;
-                break;
-            default:
-                // Fallback for translation list if something is wrong
-                selectionCount = 4;
-                break;
-        }
-    } else {
-        // Default logic for all other activities
-        selectionCount = Math.random() < 0.5 ? 2 : 3;
-    }
-
-    const finalSelectionCount = Math.min(shuffled.length, selectionCount);
-    const selectedPoints = shuffled.slice(0, finalSelectionCount);
-    
-    if (selectedPoints.length === 0) {
-        return "The sentences should use grammar appropriate for the CEFR level.";
-    }
-
-    const instruction = `The sentences must specifically test some of the following grammatical structures:\n- ${selectedPoints.join('\n- ')}`;
-    return instruction;
-};
-
-
-const getNextCefrLevel = (level: CEFRLevel): 'A1' | 'A2' | 'B1' | 'B2' | 'C1' | 'C2' => {
-    const levels: CEFRLevel[] = ['A1', 'A2', 'B1', 'B2', 'C1', 'C2'];
-    if (level === 'A1 ukr') level = 'A1';
+const getNextCefrLevel = (level: Exclude<CEFRLevel, 'A1 ukr'>): Exclude<CEFRLevel, 'A1 ukr'> => {
+    const levels: Exclude<CEFRLevel, 'A1 ukr'>[] = ['A1', 'A2', 'B1', 'B2', 'C1', 'C2'];
     const currentIndex = levels.indexOf(level);
     if (currentIndex >= 0 && currentIndex < levels.length - 1) {
-        return levels[currentIndex + 1] as 'A1' | 'A2' | 'B1' | 'B2' | 'C1' | 'C2';
+        return levels[currentIndex + 1];
     }
     return 'C2'; // If already at C2, the next level is still C2
 };
 
-export const generateTranslationQuiz = async (terms: QuizTerm[], cefrLevel: CEFRLevel, vocabChallenge: VocabularyChallenge, gramChallenge: GrammarChallenge): Promise<Omit<TranslationQuestion, 'id'>[]> => {
-    const effectiveCefrLevel = cefrLevel === 'A1 ukr' ? 'A1' : cefrLevel as 'A1' | 'A2' | 'B1' | 'B2' | 'C1' | 'C2';
+export const generateTranslationQuiz = async (
+    terms: QuizTerm[], 
+    cefrLevel: CEFRLevel, 
+    vocabChallenge: VocabularyChallenge, 
+    gramChallenge: GrammarChallenge, 
+    customTopics?: string[]
+): Promise<Omit<TranslationQuestion, 'id'>[]> => {
+    const effectiveCefrLevel = cefrLevel === 'A1 ukr' ? 'A1' : cefrLevel;
     
     const shuffledTerms = [...terms].sort(() => 0.5 - Math.random());
     const selectedTerms = shuffledTerms.slice(0, 5);
 
-    const focusedGrammarInstruction = getGrammarInstruction(effectiveCefrLevel);
+    let focusedGrammarInstruction = '';
+    if (customTopics && customTopics.length > 0) {
+        focusedGrammarInstruction = `The sentences must specifically test the following grammatical structures:\n- ${customTopics.join('\n- ')}`;
+    } else {
+        const pool = grammarPools[effectiveCefrLevel];
+        if (pool && pool.length > 0) {
+            const shuffled = [...pool].sort(() => 0.5 - Math.random());
+            const selectionCount = Math.random() < 0.5 ? 2 : 3;
+            const selectedPoints = shuffled.slice(0, Math.min(pool.length, selectionCount));
+            focusedGrammarInstruction = `The sentences must specifically test some of the following grammatical structures:\n- ${selectedPoints.join('\n- ')}`;
+        }
+    }
+
     const difficultyInstruction = getDifficultyInstruction(vocabChallenge, gramChallenge, 'translate_uk_en');
 
     const prompt = `
@@ -491,7 +371,6 @@ Please return the output as a a single JSON object that strictly adheres to the 
 `;
 
     try {
-        // FIX: Explicitly type the response from generateContent.
         const response: GenerateContentResponse = await withRetry(() => ai.models.generateContent({
             model: "gemini-2.5-flash",
             contents: prompt,
@@ -552,7 +431,7 @@ const evaluationSchema = {
     required: ["score", "feedback"],
 };
 
-const getEvaluationRubric = (level: 'A1' | 'A2' | 'B1' | 'B2' | 'C1' | 'C2'): { personality: string, rubric: string, specialInstructions: string } => {
+const getEvaluationRubric = (level: Exclude<CEFRLevel, 'A1 ukr'>): { personality: string, rubric: string, specialInstructions: string } => {
     let personality: string;
     let rubric: string;
     const specialInstructions = `**CRITICAL SCORING RULE:** The provided model answer is just one correct example. If the student's translation is grammatically correct and accurately conveys the same meaning, it MUST receive a high score, even if it uses different words or sentence structures. Do not penalize valid alternative phrasings.`;
@@ -624,13 +503,21 @@ export const evaluateTranslationAnswer = async (
     modelAnswer: string, 
     ukrainianSentence: string,
     originalTerm: string,
-    cefrLevel: CEFRLevel
+    cefrLevel: CEFRLevel,
+    language: Language
 ): Promise<{ score: number; feedback: FeedbackItem[] }> => {
     
-    const effectiveCefrLevel = cefrLevel === 'A1 ukr' ? 'A1' : cefrLevel as 'A1' | 'A2' | 'B1' | 'B2' | 'C1' | 'C2';
+    const effectiveCefrLevel = cefrLevel === 'A1 ukr' ? 'A1' : cefrLevel;
     const nextLevel = getNextCefrLevel(effectiveCefrLevel);
-    const grammarForBonus = getGrammarInstruction(nextLevel);
+    const grammarForBonusPool = grammarPools[nextLevel];
+    const grammarForBonus = `The sentences must specifically test some of the following grammatical structures:\n- ${[...grammarForBonusPool].sort(() => 0.5 - Math.random()).slice(0, 5).join('\n- ')}`;
+
     const { personality, rubric, specialInstructions } = getEvaluationRubric(effectiveCefrLevel);
+
+    const translationInstruction = language === 'uk'
+        ? `**Step 5: Translate Feedback**
+CRITICAL: Before returning the JSON, translate the 'topic' and 'message' for every feedback item into fluent, natural-sounding Ukrainian.`
+        : "";
 
     const prompt = `
 ${personality} Your task is to evaluate a student's translation from Ukrainian to English using a detailed rubric and provide structured feedback.
@@ -671,11 +558,12 @@ For each point:
 - **topic**: A specific, concise topic (e.g., "Verb Tense", "Advanced Vocabulary").
 - **message**: The detailed feedback message explaining the error or the advanced usage.
 
+${translationInstruction}
+
 **CRITICAL:** Your entire output must be a single JSON object that strictly adheres to the provided schema. Do not include any other text.
 `;
 
     try {
-        // FIX: Explicitly type the response from generateContent.
         const response: GenerateContentResponse = await withRetry(() => ai.models.generateContent({
             model: "gemini-2.5-flash",
             contents: prompt,
@@ -696,9 +584,12 @@ For each point:
         }
     } catch (error) {
         console.error("Error evaluating translation with Gemini:", error);
+        const errorMessage = language === 'uk'
+            ? "Вибачте, сталася помилка під час оцінювання відповіді. Будь ласка, спробуйте ще раз."
+            : "Sorry, an error occurred while evaluating the answer. Please try again.";
         return { 
             score: 0, 
-            feedback: [{ type: 'error', topic: 'API Error', message: "Sorry, an error occurred while evaluating the answer. Please try again." }] 
+            feedback: [{ type: 'error', topic: language === 'uk' ? 'Помилка API' : 'API Error', message: errorMessage }] 
         };
     }
 };
@@ -751,7 +642,6 @@ Please return the output as a a single JSON object that strictly adheres to the 
 `;
 
     try {
-        // FIX: Explicitly type the response from generateContent.
         const response: GenerateContentResponse = await withRetry(() => ai.models.generateContent({
             model: "gemini-2.5-flash",
             contents: prompt,
@@ -789,12 +679,26 @@ const translationListSchema = {
 };
 
 export const generateTranslationList = async (terms: QuizTerm[], cefrLevel: CEFRLevel, vocabChallenge: VocabularyChallenge, gramChallenge: GrammarChallenge): Promise<string[]> => {
-    const effectiveCefrLevel = cefrLevel === 'A1 ukr' ? 'A1' : cefrLevel as 'A1' | 'A2' | 'B1' | 'B2' | 'C1' | 'C2';
+    const effectiveCefrLevel = cefrLevel === 'A1 ukr' ? 'A1' : cefrLevel;
     
     const shuffledTerms = [...terms].sort(() => 0.5 - Math.random());
     const selectedTerms = shuffledTerms.slice(0, 15);
 
-    const focusedGrammarInstruction = getGrammarInstruction(effectiveCefrLevel, gramChallenge, 'translation_list');
+    const pool = grammarPools[effectiveCefrLevel];
+    let focusedGrammarInstruction = '';
+    if (pool && pool.length > 0) {
+        const shuffled = [...pool].sort(() => 0.5 - Math.random());
+        let selectionCount;
+        switch (gramChallenge) {
+            case 'Simple': selectionCount = 3; break;
+            case 'Standard': selectionCount = 4; break;
+            case 'Complex': selectionCount = 5; break;
+            default: selectionCount = 4; break;
+        }
+        const selectedPoints = shuffled.slice(0, Math.min(pool.length, selectionCount));
+        focusedGrammarInstruction = `The sentences must specifically test some of the following grammatical structures:\n- ${selectedPoints.join('\n- ')}`;
+    }
+
     const difficultyInstruction = getDifficultyInstruction(vocabChallenge, gramChallenge, 'translate_uk_en');
 
     const prompt = `
@@ -815,7 +719,6 @@ Please return the output as a a single JSON object containing a list of 15 Ukrai
 `;
 
     try {
-        // FIX: Explicitly type the response from generateContent.
         const response: GenerateContentResponse = await withRetry(() => ai.models.generateContent({
             model: "gemini-2.5-flash",
             contents: prompt,
@@ -855,9 +758,28 @@ const textTranslationSchema = {
     required: ["ukrainianText", "englishAnswer"],
 };
 
-export const generateTextTranslationActivity = async (terms: QuizTerm[], cefrLevel: CEFRLevel, vocabChallenge: VocabularyChallenge, gramChallenge: GrammarChallenge): Promise<{ ukrainianText: string; englishAnswer: string; }> => {
-    const effectiveCefrLevel = cefrLevel === 'A1 ukr' ? 'A1' : cefrLevel as 'A1' | 'A2' | 'B1' | 'B2' | 'C1' | 'C2';
-    const focusedGrammarInstruction = getGrammarInstruction(effectiveCefrLevel);
+export const generateTextTranslationActivity = async (
+    terms: QuizTerm[], 
+    cefrLevel: CEFRLevel, 
+    vocabChallenge: VocabularyChallenge, 
+    gramChallenge: GrammarChallenge, 
+    customTopics?: string[]
+): Promise<{ ukrainianText: string; englishAnswer: string; }> => {
+    const effectiveCefrLevel = cefrLevel === 'A1 ukr' ? 'A1' : cefrLevel;
+    
+    let focusedGrammarInstruction = '';
+    if (customTopics && customTopics.length > 0) {
+        focusedGrammarInstruction = `The text must be written in a way that requires the use of the following grammatical structures for a natural English translation:\n- ${customTopics.join('\n- ')}`;
+    } else {
+        const pool = grammarPools[effectiveCefrLevel];
+        if (pool && pool.length > 0) {
+            const shuffled = [...pool].sort(() => 0.5 - Math.random());
+            const selectionCount = Math.random() < 0.5 ? 2 : 3;
+            const selectedPoints = shuffled.slice(0, Math.min(pool.length, selectionCount));
+            focusedGrammarInstruction = `The text must be written in a way that requires the use of some of the following grammatical structures for a natural English translation:\n- ${selectedPoints.join('\n- ')}`;
+        }
+    }
+
     const difficultyInstruction = getDifficultyInstruction(vocabChallenge, gramChallenge, 'text_translation');
 
     const prompt = `
@@ -880,7 +802,6 @@ Please return the output as a a single JSON object that strictly adheres to the 
 `;
 
     try {
-        // FIX: Explicitly type the response from generateContent.
         const response: GenerateContentResponse = await withRetry(() => ai.models.generateContent({
             model: "gemini-2.5-flash",
             contents: prompt,
@@ -905,7 +826,7 @@ Please return the output as a a single JSON object that strictly adheres to the 
     }
 };
 
-const getHolisticEvaluationRubric = (level: 'A1' | 'A2' | 'B1' | 'B2' | 'C1' | 'C2'): { personality: string, rubric: string, specialInstructions: string } => {
+const getHolisticEvaluationRubric = (level: Exclude<CEFRLevel, 'A1 ukr'>): { personality: string, rubric: string, specialInstructions: string } => {
     let personality: string;
     let rubric: string;
     const specialInstructions = `**CRITICAL SCORING RULE:** The provided model answer is just one correct example. If the student's translation is grammatically correct and accurately conveys the same meaning, it MUST receive a high score, even if it uses different words or sentence structures. Do not penalize valid alternative phrasings.`;
@@ -949,11 +870,17 @@ export const evaluateTextTranslationAnswer = async (
     userAnswer: string, 
     modelAnswer: string, 
     ukrainianText: string,
-    cefrLevel: CEFRLevel
+    cefrLevel: CEFRLevel,
+    language: Language
 ): Promise<{ score: number; feedback: FeedbackItem[] }> => {
     
-    const effectiveCefrLevel = cefrLevel === 'A1 ukr' ? 'A1' : cefrLevel as 'A1' | 'A2' | 'B1' | 'B2' | 'C1' | 'C2';
+    const effectiveCefrLevel = cefrLevel === 'A1 ukr' ? 'A1' : cefrLevel;
     const { personality, rubric, specialInstructions } = getHolisticEvaluationRubric(effectiveCefrLevel);
+
+    const translationInstruction = language === 'uk'
+        ? `**3. Translate Feedback:**
+CRITICAL: Before returning the JSON, translate the 'topic' and 'message' for every feedback item into fluent, natural-sounding Ukrainian.`
+        : "";
 
     const prompt = `
 ${personality} Your task is to evaluate a student's translation of a Ukrainian text using a holistic rubric and provide structured, bullet-pointed feedback.
@@ -985,11 +912,12 @@ For each point:
 - **topic**: A specific, concise topic (e.g., "Tense Consistency", "Idiomatic Phrasing", "Advanced Vocabulary").
 - **message**: The detailed feedback message for the student.
 
+${translationInstruction}
+
 **CRITICAL:** Your entire output must be a single JSON object that strictly adheres to the provided schema. Do not include any other text.
 `;
 
     try {
-        // FIX: Explicitly type the response from generateContent.
         const response: GenerateContentResponse = await withRetry(() => ai.models.generateContent({
             model: "gemini-2.5-flash",
             contents: prompt,
@@ -1010,9 +938,12 @@ For each point:
         }
     } catch (error) {
         console.error("Error evaluating text translation with Gemini:", error);
+        const errorMessage = language === 'uk'
+            ? "Вибачте, сталася помилка під час оцінювання відповіді. Будь ласка, спробуйте ще раз."
+            : "Sorry, an error occurred while evaluating the answer. Please try again.";
         return { 
             score: 0, 
-            feedback: [{ type: 'error', topic: 'API Error', message: "Sorry, an error occurred while evaluating the answer. Please try again." }] 
+            feedback: [{ type: 'error', topic: language === 'uk' ? 'Помилка API' : 'API Error', message: errorMessage }] 
         };
     }
 };

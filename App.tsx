@@ -10,7 +10,11 @@ import DiscussionScreen from './components/DiscussionScreen';
 import TranslationListScreen from './components/TranslationListScreen';
 import MatchingScreen from './components/MatchingScreen';
 import TextTranslationScreen from './components/TextTranslationScreen';
+import FlashcardsScreen from './components/FlashcardsScreen';
+import InfoModal from './components/InfoModal';
+import LanguageToggle from './components/LanguageToggle';
 import { generateMcqQuiz, generateGapFillQuiz, generateDiscussionPrompts, generateTranslationQuiz, generateTranslationList, generateTextTranslationActivity } from './services/geminiService';
+import { useTranslation } from './hooks/useTranslation';
 
 function App() {
   const [appState, setAppState] = useState<AppState>('input');
@@ -49,8 +53,13 @@ function App() {
   const [matchingPairs, setMatchingPairs] = useState<QuizTerm[]>([]);
   const [matchingResult, setMatchingResult] = useState<MatchingUserResult | null>(null);
 
+  // Flashcards State
+  const [flashcardTerms, setFlashcardTerms] = useState<QuizTerm[]>([]);
+
   const [error, setError] = useState<string | null>(null);
   const [loadingMessage, setLoadingMessage] = useState('Generating Your Quiz...');
+  const [isInfoModalOpen, setIsInfoModalOpen] = useState(false);
+  const { language, t } = useTranslation();
 
   const parseQuizletData = (data: string): QuizTerm[] => {
     return data
@@ -67,8 +76,17 @@ function App() {
     return [...array].sort(() => Math.random() - 0.5);
   };
 
-  const handleGenerate = useCallback(async (quizletData: string, type: GenerationType, cefrLevel: CEFRLevel, vocabChallenge: VocabularyChallenge, gramChallenge: GrammarChallenge, isTimed: boolean) => {
+  const handleGenerate = useCallback(async (
+      quizletData: string, 
+      type: GenerationType, 
+      cefrLevel: CEFRLevel, 
+      vocabChallenge: VocabularyChallenge, 
+      gramChallenge: GrammarChallenge, 
+      isTimed: boolean,
+      customGrammarTopics?: string[]
+    ) => {
     setError(null);
+    setAppState('generating_mcq'); // A generic loading state
     const terms = parseQuizletData(quizletData);
     setIsTimedMode(isTimed);
     setCurrentCefrLevel(cefrLevel);
@@ -125,7 +143,7 @@ function App() {
         setLoadingMessage('Generating Translation Exercise (5 questions)...');
         setAppState('generating_translation');
         try {
-            const generatedQuestions = await generateTranslationQuiz(terms, cefrLevel, vocabChallenge, gramChallenge);
+            const generatedQuestions = await generateTranslationQuiz(terms, cefrLevel, vocabChallenge, gramChallenge, customGrammarTopics);
             const questionsWithIds = generatedQuestions.map(q => ({
                 ...q,
                 id: crypto.randomUUID(),
@@ -141,7 +159,7 @@ function App() {
         setLoadingMessage('Generating Text for Translation...');
         setAppState('generating_text_translation');
         try {
-            const generatedText = await generateTextTranslationActivity(terms, cefrLevel, vocabChallenge, gramChallenge);
+            const generatedText = await generateTextTranslationActivity(terms, cefrLevel, vocabChallenge, gramChallenge, customGrammarTopics);
             setTextTranslationQuestion({
                 ...generatedText,
                 id: crypto.randomUUID(),
@@ -186,6 +204,13 @@ function App() {
             setAppState('matching_quiz');
         }, 100);
 
+    } else if (type === 'flashcards') {
+        setLoadingMessage('Creating Flashcards...');
+        setAppState('generating_flashcards');
+        setTimeout(() => {
+            setFlashcardTerms(shuffleArray(terms));
+            setAppState('flashcards_activity');
+        }, 100);
     } else { // discussion or agree_disagree
         const title = type === 'discussion' ? 'Discussion Questions' : 'Agree/Disagree Statements';
         setDiscussionTitle(title);
@@ -201,7 +226,7 @@ function App() {
             setAppState('input');
         }
     }
-  }, []);
+  }, [language]);
 
   const handleMcqComplete = useCallback((answers: UserAnswer[]) => {
     setUserAnswers(answers);
@@ -230,6 +255,10 @@ function App() {
 
 
   const handleRestart = useCallback(() => {
+    // Stop any currently playing audio before resetting state
+    if (typeof window.speechSynthesis !== 'undefined') {
+        window.speechSynthesis.cancel();
+    }
     setAppState('input');
     setQuestions([]);
     setUserAnswers([]);
@@ -245,6 +274,7 @@ function App() {
     setTranslationListSentences([]);
     setMatchingPairs([]);
     setMatchingResult(null);
+    setFlashcardTerms([]);
     setIsTimedMode(false);
     setCurrentCefrLevel('B1');
     setVocabularyChallenge('Standard');
@@ -263,26 +293,31 @@ function App() {
       case 'generating_translation_list':
       case 'generating_matching':
       case 'generating_text_translation':
+      case 'generating_flashcards':
         return <LoadingScreen message={loadingMessage} />;
       case 'mcq_quiz':
-        return <QuizScreen questions={questions} onComplete={handleMcqComplete} isTimedMode={isTimedMode} />;
+        return <QuizScreen questions={questions} onComplete={handleMcqComplete} isTimedMode={isTimedMode} cefrLevel={currentCefrLevel} />;
       case 'gap_fill_quiz':
-        return <GapFillQuizScreen questions={gapFillQuestions} onComplete={handleGapFillComplete} isTimedMode={isTimedMode} />;
+        return <GapFillQuizScreen questions={gapFillQuestions} onComplete={handleGapFillComplete} isTimedMode={isTimedMode} cefrLevel={currentCefrLevel} />;
       case 'translation_quiz':
         return <TranslationQuizScreen 
                     questions={translationQuestions} 
                     onComplete={handleTranslationComplete} 
                     isTimedMode={isTimedMode} 
-                    cefrLevel={currentCefrLevel} 
+                    cefrLevel={currentCefrLevel}
+                    language={language}
                 />;
       case 'text_translation_quiz':
         return <TextTranslationScreen 
                     question={textTranslationQuestion!} 
                     onComplete={handleTextTranslationComplete} 
                     cefrLevel={currentCefrLevel}
+                    language={language}
                 />;
       case 'matching_quiz':
         return <MatchingScreen terms={matchingPairs} onComplete={handleMatchingComplete} />;
+      case 'flashcards_activity':
+        return <FlashcardsScreen terms={flashcardTerms} onRestart={handleRestart} />;
       case 'final_results':
         return <ResultsScreen 
                     mcqUserAnswers={userAnswers} 
@@ -292,25 +327,39 @@ function App() {
                     translationUserAnswers={translationUserAnswers}
                     translationQuestions={translationQuestions}
                     textTranslationUserAnswer={textTranslationUserAnswer}
+                    textTranslationQuestion={textTranslationQuestion}
                     matchingResult={matchingResult}
                     matchingPairs={matchingPairs}
                     quizTerms={quizTerms}
-                    onRestart={handleRestart} 
+                    onRestart={handleRestart}
+                    cefrLevel={currentCefrLevel}
                 />;
       case 'discussion_results':
-        return <DiscussionScreen prompts={discussionPrompts} title={discussionTitle} onRestart={handleRestart} />;
+        return <DiscussionScreen prompts={discussionPrompts} title={discussionTitle} onRestart={handleRestart} cefrLevel={currentCefrLevel} />;
       case 'translation_list_results':
-        return <TranslationListScreen sentences={translationListSentences} title="Sentences for Translation" onRestart={handleRestart} />;
+        return <TranslationListScreen sentences={translationListSentences} title={t('translationListScreen.title')} onRestart={handleRestart} />;
       default:
         return <InputScreen onGenerate={handleGenerate} error={error} />;
     }
   };
 
   return (
-    <div className="min-h-screen bg-slate-900 text-white flex flex-col items-center justify-center p-4 font-sans">
-      <div className="w-full max-w-3xl mx-auto">
+    <div className="min-h-screen bg-slate-900 text-white flex flex-col items-center justify-center p-4 font-sans relative">
+      <LanguageToggle />
+
+      <div className="w-full max-w-5xl mx-auto">
         {renderContent()}
       </div>
+
+      <button
+        onClick={() => setIsInfoModalOpen(true)}
+        className="fixed bottom-4 left-4 bg-slate-700 hover:bg-slate-600 text-slate-300 font-semibold py-2 px-4 rounded-lg shadow-lg transition-colors text-sm z-50"
+        aria-label="Show application info and changelog"
+      >
+        {t('common.info')}
+      </button>
+
+      {isInfoModalOpen && <InfoModal onClose={() => setIsInfoModalOpen(false)} />}
     </div>
   );
 }

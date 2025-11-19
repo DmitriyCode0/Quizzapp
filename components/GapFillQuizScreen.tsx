@@ -1,27 +1,33 @@
 import React, { useState, useEffect } from 'react';
-import { GapFillQuestion, GapFillUserAnswer } from '../types';
+import { GapFillQuestion, GapFillUserAnswer, CEFRLevel } from '../types';
 import PauseIcon from './icons/PauseIcon';
 import PlayIcon from './icons/PlayIcon';
+import AudioButton from './AudioButton';
 
 interface GapFillQuizScreenProps {
   questions: GapFillQuestion[];
   onComplete: (answers: GapFillUserAnswer[]) => void;
   isTimedMode: boolean;
+  cefrLevel: CEFRLevel;
 }
 
-const GapFillQuizScreen: React.FC<GapFillQuizScreenProps> = ({ questions, onComplete, isTimedMode }) => {
+const GapFillQuizScreen: React.FC<GapFillQuizScreenProps> = ({ questions, onComplete, isTimedMode, cefrLevel }) => {
   const [currentIndex, setCurrentIndex] = useState(0);
   const [inputValue, setInputValue] = useState('');
   const [isAnswered, setIsAnswered] = useState(false);
   const [isCorrect, setIsCorrect] = useState(false);
   const [showHint, setShowHint] = useState(false);
   const [userAnswers, setUserAnswers] = useState<GapFillUserAnswer[]>([]);
+  const [isSkipped, setIsSkipped] = useState(false);
   
   const [timeLeft, setTimeLeft] = useState(30);
   const [isPaused, setIsPaused] = useState(false);
 
   const currentQuestion = questions[currentIndex];
   const [start, end] = currentQuestion.sentence.split('____');
+  const isUkr = cefrLevel === 'A1 ukr';
+  const sentenceLang = isUkr ? 'uk-UA' : 'en-US';
+  const fullSentence = currentQuestion.sentence.replace('____', currentQuestion.correctAnswer);
 
   // Timer countdown effect
   useEffect(() => {
@@ -42,10 +48,14 @@ const GapFillQuizScreen: React.FC<GapFillQuizScreenProps> = ({ questions, onComp
 
   // Question change effect
   useEffect(() => {
+    if (typeof window.speechSynthesis !== 'undefined') {
+        window.speechSynthesis.cancel();
+    }
     setInputValue('');
     setIsAnswered(false);
     setIsCorrect(false);
     setShowHint(false);
+    setIsSkipped(false);
     setTimeLeft(30);
     setIsPaused(false);
     document.getElementById('gap-fill-input')?.focus();
@@ -54,10 +64,14 @@ const GapFillQuizScreen: React.FC<GapFillQuizScreenProps> = ({ questions, onComp
   const handleCheckAnswer = () => {
     if (isAnswered) return;
 
+    if (typeof window.speechSynthesis !== 'undefined') {
+        window.speechSynthesis.cancel();
+    }
     const userAnswer = inputValue.trim();
     const correctAnswer = currentQuestion.correctAnswer;
     const correct = userAnswer.toLowerCase() === correctAnswer.toLowerCase();
     
+    setIsSkipped(false);
     setIsAnswered(true);
     setIsCorrect(correct);
     setUserAnswers(prev => [...prev, {
@@ -65,6 +79,22 @@ const GapFillQuizScreen: React.FC<GapFillQuizScreenProps> = ({ questions, onComp
       userAnswer,
       correctAnswer,
       isCorrect: correct,
+    }]);
+  };
+  
+  const handleSkip = () => {
+    if (isAnswered) return;
+    if (typeof window.speechSynthesis !== 'undefined') {
+        window.speechSynthesis.cancel();
+    }
+    setIsSkipped(true);
+    setIsAnswered(true);
+    setIsCorrect(false);
+    setUserAnswers(prev => [...prev, {
+      questionId: currentQuestion.id,
+      userAnswer: 'Skipped',
+      correctAnswer: currentQuestion.correctAnswer,
+      isCorrect: false,
     }]);
   };
 
@@ -124,22 +154,26 @@ const GapFillQuizScreen: React.FC<GapFillQuizScreenProps> = ({ questions, onComp
             </div>
 
             <form onSubmit={formSubmitHandler} className="flex flex-col items-center">
-                <div className="text-2xl font-medium text-slate-100 mb-6 text-center leading-relaxed">
-                    <span>{start}</span>
-                    <div className="inline-block mx-2">
-                        <input
-                            id="gap-fill-input"
-                            type="text"
-                            value={inputValue}
-                            onChange={(e) => setInputValue(e.target.value)}
-                            disabled={isAnswered}
-                            className={`bg-slate-700 border-b-2 ${inputBorderColor} text-center text-2xl font-bold text-white w-48 focus:outline-none transition-colors duration-300 p-1`}
-                            autoFocus
-                            autoComplete="off"
-                        />
+                <div className="w-full flex items-center justify-center gap-4 mb-6">
+                    <div className="text-2xl font-medium text-slate-100 text-center leading-relaxed">
+                        <span>{start}</span>
+                        <div className="inline-block mx-2">
+                            <input
+                                id="gap-fill-input"
+                                type="text"
+                                value={inputValue}
+                                onChange={(e) => setInputValue(e.target.value)}
+                                disabled={isAnswered}
+                                className={`bg-slate-700 border-b-2 ${inputBorderColor} text-center text-2xl font-bold text-white w-48 focus:outline-none transition-colors duration-300 p-1`}
+                                autoFocus
+                                autoComplete="off"
+                            />
+                        </div>
+                        <span>{end}</span>
                     </div>
-                    <span>{end}</span>
+                    <AudioButton textToSpeak={fullSentence} lang={sentenceLang} />
                 </div>
+
 
                 <div className="flex flex-col items-center gap-4 mb-8">
                     <button 
@@ -155,9 +189,13 @@ const GapFillQuizScreen: React.FC<GapFillQuizScreenProps> = ({ questions, onComp
                 {isAnswered && (
                     <div className="text-center mb-6 animate-fade-in">
                         {timeLeft <= 0 && <p className="text-red-400 font-bold">Time's up!</p>}
-                        <p className={`text-xl font-bold ${isCorrect ? 'text-green-400' : 'text-red-400'}`}>
-                            {isCorrect ? 'Correct!' : 'Not quite!'}
-                        </p>
+                        {isSkipped ? (
+                             <p className="text-xl font-bold text-yellow-400">Question Skipped.</p>
+                        ) : (
+                            <p className={`text-xl font-bold ${isCorrect ? 'text-green-400' : 'text-red-400'}`}>
+                                {isCorrect ? 'Correct!' : 'Not quite!'}
+                            </p>
+                        )}
                         {!isCorrect && (
                             <p className="text-slate-300 text-lg">
                                 The correct answer is: <span className="font-bold text-green-400">{currentQuestion.correctAnswer}</span>
@@ -165,14 +203,25 @@ const GapFillQuizScreen: React.FC<GapFillQuizScreenProps> = ({ questions, onComp
                         )}
                     </div>
                 )}
-
-                <button
-                    type="submit"
-                    disabled={!isAnswered && !inputValue.trim()}
-                    className="w-full max-w-sm bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3 px-4 rounded-lg transition-transform transform hover:scale-105 disabled:bg-slate-600 disabled:cursor-not-allowed"
-                >
-                    {isAnswered ? (currentIndex < questions.length - 1 ? "Next Question" : "Finish Quiz") : "Check Answer"}
-                </button>
+                
+                <div className="w-full max-w-sm flex flex-col items-center gap-3">
+                    <button
+                        type="submit"
+                        disabled={!isAnswered && !inputValue.trim()}
+                        className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3 px-4 rounded-lg transition-transform transform hover:scale-105 disabled:bg-slate-600 disabled:cursor-not-allowed"
+                    >
+                        {isAnswered ? (currentIndex < questions.length - 1 ? "Next Question" : "Finish Quiz") : "Check Answer"}
+                    </button>
+                    {!isAnswered && (
+                        <button
+                            type="button"
+                            onClick={handleSkip}
+                            className="bg-transparent hover:bg-slate-700 text-slate-400 font-semibold py-2 px-4 border border-slate-600 rounded-lg transition"
+                        >
+                            Skip Question
+                        </button>
+                    )}
+                </div>
             </form>
         </div>
     </div>

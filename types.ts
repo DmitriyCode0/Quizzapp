@@ -1,4 +1,4 @@
-
+// FIX: Removed self-import of 'GenerationType' to resolve declaration conflict.
 
 export type AppState =
   | 'input'
@@ -9,21 +9,25 @@ export type AppState =
   | 'generating_translation_list'
   | 'generating_matching'
   | 'generating_text_translation'
+  | 'generating_flashcards'
   | 'mcq_quiz'
   | 'gap_fill_quiz'
   | 'translation_quiz'
   | 'matching_quiz'
   | 'text_translation_quiz'
+  | 'flashcards_activity'
   | 'final_results'
   | 'discussion_results'
   | 'translation_list_results';
 
-export type GenerationType = 'mcq' | 'gap_fill' | 'discussion' | 'agree_disagree' | 'translate_uk_en' | 'translation_list' | 'matching' | 'text_translation';
+export type GenerationType = 'mcq' | 'gap_fill' | 'discussion' | 'agree_disagree' | 'translate_uk_en' | 'translation_list' | 'matching' | 'text_translation' | 'flashcards';
 
 export type CEFRLevel = 'A1' | 'A2' | 'B1' | 'B2' | 'C1' | 'C2' | 'A1 ukr';
 
 export type VocabularyChallenge = 'Basic' | 'Standard' | 'Advanced';
 export type GrammarChallenge = 'Simple' | 'Standard' | 'Complex';
+
+export type Language = 'en' | 'uk';
 
 export interface QuizTerm {
   term: string;

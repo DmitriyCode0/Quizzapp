@@ -1,18 +1,22 @@
+
 import React, { useState, useEffect, useCallback } from 'react';
-import { Question, UserAnswer } from '../types';
+import { Question, UserAnswer, CEFRLevel } from '../types';
 import CheckIcon from './icons/CheckIcon';
 import XIcon from './icons/XIcon';
 import PauseIcon from './icons/PauseIcon';
 import PlayIcon from './icons/PlayIcon';
+import AudioButton from './AudioButton';
+import { useTranslation } from '../hooks/useTranslation';
 
 
 interface QuizScreenProps {
   questions: Question[];
   onComplete: (answers: UserAnswer[]) => void;
   isTimedMode: boolean;
+  cefrLevel: CEFRLevel;
 }
 
-const QuizScreen: React.FC<QuizScreenProps> = ({ questions, onComplete, isTimedMode }) => {
+const QuizScreen: React.FC<QuizScreenProps> = ({ questions, onComplete, isTimedMode, cefrLevel }) => {
   const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
   const [selectedAnswer, setSelectedAnswer] = useState<string | null>(null);
   const [userAnswers, setUserAnswers] = useState<UserAnswer[]>([]);
@@ -20,8 +24,11 @@ const QuizScreen: React.FC<QuizScreenProps> = ({ questions, onComplete, isTimedM
   
   const [timeLeft, setTimeLeft] = useState(30);
   const [isPaused, setIsPaused] = useState(false);
+  const { t } = useTranslation();
 
   const currentQuestion = questions[currentQuestionIndex];
+  const isUkr = cefrLevel === 'A1 ukr';
+  const questionLang = isUkr ? 'uk-UA' : 'en-US';
 
   const handleNext = useCallback(() => {
     if (currentQuestionIndex < questions.length - 1) {
@@ -50,6 +57,9 @@ const QuizScreen: React.FC<QuizScreenProps> = ({ questions, onComplete, isTimedM
 
   // Question change effect
   useEffect(() => {
+    if (typeof window.speechSynthesis !== 'undefined') {
+        window.speechSynthesis.cancel();
+    }
     setSelectedAnswer(null);
     setIsAnswered(false);
     setTimeLeft(30);
@@ -74,15 +84,26 @@ const QuizScreen: React.FC<QuizScreenProps> = ({ questions, onComplete, isTimedM
 
   const handleAnswerClick = (option: string) => {
     if (isAnswered) return;
+    if (typeof window.speechSynthesis !== 'undefined') {
+        window.speechSynthesis.cancel();
+    }
 
     const isTimeUp = option === '__TIME_UP__';
-    const isCorrect = !isTimeUp && option === currentQuestion.correctAnswer;
+    const isSkipped = option === '__SKIPPED__';
+    const isCorrect = !isTimeUp && !isSkipped && option === currentQuestion.correctAnswer;
+    
+    let displayedAnswer = option;
+    if (isTimeUp) {
+      displayedAnswer = t('common.timesUp');
+    } else if (isSkipped) {
+      displayedAnswer = t('common.skipped');
+    }
     
     setSelectedAnswer(option);
     setIsAnswered(true);
     setUserAnswers(prev => [...prev, {
       questionId: currentQuestion.id,
-      selectedAnswer: isTimeUp ? "Time's Up" : option,
+      selectedAnswer: displayedAnswer,
       correctAnswer: currentQuestion.correctAnswer,
       isCorrect,
     }]);
@@ -111,7 +132,7 @@ const QuizScreen: React.FC<QuizScreenProps> = ({ questions, onComplete, isTimedM
                 <button 
                     onClick={() => setIsPaused(!isPaused)} 
                     className="bg-slate-600 hover:bg-slate-500 p-3 rounded-full text-white transition-colors"
-                    aria-label={isPaused ? "Resume quiz" : "Pause quiz"}
+                    aria-label={isPaused ? t('common.resume') : t('common.paused')}
                 >
                     {isPaused ? <PlayIcon /> : <PauseIcon />}
                 </button>
@@ -120,22 +141,26 @@ const QuizScreen: React.FC<QuizScreenProps> = ({ questions, onComplete, isTimedM
 
         {isPaused && isTimedMode && (
             <div className="absolute inset-0 bg-black bg-opacity-80 flex flex-col items-center justify-center z-10 rounded-lg">
-                <h2 className="text-4xl font-bold mb-6 text-slate-100">Paused</h2>
+                <h2 className="text-4xl font-bold mb-6 text-slate-100">{t('common.paused')}</h2>
                 <button onClick={() => setIsPaused(false)} className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3 px-6 rounded-lg text-lg">
-                    Resume
+                    {t('common.resume')}
                 </button>
             </div>
         )}
 
         <div className={isPaused ? 'blur-sm' : ''}>
             <div className="mb-6">
-                <p className="text-indigo-400 font-semibold">Question {currentQuestionIndex + 1} of {questions.length}</p>
+                <p className="text-indigo-400 font-semibold">{t('common.question_x_of_y', { current: currentQuestionIndex + 1, total: questions.length })}</p>
                 <div className="w-full bg-slate-700 rounded-full h-2.5 mt-2">
                     <div className="bg-indigo-600 h-2.5 rounded-full" style={{ width: `${((currentQuestionIndex + 1) / questions.length) * 100}%` }}></div>
                 </div>
             </div>
 
-            <h2 className="text-2xl font-bold mb-6 text-slate-100 min-h-[3.5rem]">{currentQuestion.question}</h2>
+            <div className="flex items-center gap-3 justify-between mb-6">
+              <h2 className="text-2xl font-bold text-slate-100 min-h-[3.5rem] flex-grow">{currentQuestion.question}</h2>
+              <AudioButton textToSpeak={currentQuestion.question} lang={questionLang} />
+            </div>
+
 
             <div className="flex flex-col gap-4 mb-8">
                 {currentQuestion.options.map((option, index) => (
@@ -146,20 +171,33 @@ const QuizScreen: React.FC<QuizScreenProps> = ({ questions, onComplete, isTimedM
                         className={`w-full text-left p-4 rounded-lg transition-all duration-300 flex justify-between items-center ${getButtonClass(option)}`}
                     >
                         <span className="font-medium">{option}</span>
-                        {isAnswered && option === currentQuestion.correctAnswer && <CheckIcon />}
-                        {isAnswered && option === selectedAnswer && option !== currentQuestion.correctAnswer && <XIcon />}
+                        <div className="flex items-center gap-2">
+                            <AudioButton textToSpeak={option} lang="en-US" />
+                            {isAnswered && option === currentQuestion.correctAnswer && <CheckIcon />}
+                            {isAnswered && option === selectedAnswer && option !== currentQuestion.correctAnswer && <XIcon />}
+                        </div>
                     </button>
                 ))}
             </div>
 
-            {isAnswered && (
+            {isAnswered ? (
                 <div className="flex flex-col items-center">
-                    {selectedAnswer === '__TIME_UP__' && <p className="text-red-400 font-bold mb-4">Time's up!</p>}
+                    {selectedAnswer === '__TIME_UP__' && <p className="text-red-400 font-bold mb-4">{t('common.timesUp')}</p>}
+                    {selectedAnswer === '__SKIPPED__' && <p className="text-yellow-400 font-bold mb-4">{t('quizScreen.questionSkipped')}</p>}
                     <button
                         onClick={handleNext}
                         className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3 px-4 rounded-lg transition-transform transform hover:scale-105"
                     >
-                        {currentQuestionIndex < questions.length - 1 ? "Next Question" : "Finish Quiz"}
+                        {currentQuestionIndex < questions.length - 1 ? t('common.nextQuestion') : t('common.finishQuiz')}
+                    </button>
+                </div>
+            ) : (
+                 <div className="text-center">
+                    <button
+                        onClick={() => handleAnswerClick('__SKIPPED__')}
+                        className="bg-transparent hover:bg-slate-700 text-slate-400 font-semibold py-2 px-4 border border-slate-600 rounded-lg transition"
+                    >
+                        {t('common.skipQuestion')}
                     </button>
                 </div>
             )}

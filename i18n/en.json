@@ -1,0 +1,160 @@
+{
+  "common": {
+    "create": "Create",
+    "info": "Info",
+    "close": "Close",
+    "shareResults": "Share Results",
+    "copied": "Copied!",
+    "copyProblematic": "Copy Problematic",
+    "createSomethingNew": "Create Something New",
+    "nextQuestion": "Next Question",
+    "finishQuiz": "Finish Quiz",
+    "skipQuestion": "Skip Question",
+    "checkAnswer": "Check Answer",
+    "finish": "Finish",
+    "finishReview": "Finish Review",
+    "error": "Error",
+    "loading": "Loading...",
+    "paused": "Paused",
+    "resume": "Resume",
+    "timesUp": "Time's Up!",
+    "skipped": "Skipped",
+    "question": "Question",
+    "of": "of",
+    "question_x_of_y": "Question {{current}} of {{total}}",
+    "correct": "Correct!",
+    "notQuite": "Not quite!",
+    "correctAnswerIs": "The correct answer is: {{answer}}",
+    "yourAnswer": "Your answer:",
+    "correctAnswer": "Correct answer:",
+    "feedback": "Feedback:",
+    "yourScore": "Your Score",
+    "yourResult": "Your Result",
+    "reviewAnswers": "Review Your Answers",
+    "showHint": "Show Hint",
+    "hintUkrainian": "Hint (Ukrainian):"
+  },
+  "inputScreen": {
+    "subtitle": "Transform your vocabulary lists into interactive quizzes, discussion prompts, and more!",
+    "instructionsTitle": "Instructions:",
+    "instruction1": "Go to our",
+    "instruction1Link": "Vocab Parser Gem",
+    "instruction2": "Paste your words in any format (e.g., a simple list, a table, messy notes).",
+    "instruction3": "Click the \"Copy\" button on the generated code block.",
+    "instruction4": "Paste the formatted text into the box below.",
+    "textareaPlaceholder": "Paste your formatted text here...",
+    "cefrLevel": "CEFR Level",
+    "a1ukr": "A1 (Ukr)",
+    "vocabChallenge": "Vocabulary Challenge",
+    "grammarChallenge": "Grammar Challenge",
+    "modalTitle": "What would you like to create?",
+    "timedMode": "Timed Mode",
+    "timedModeDesc": "(for quizzes)",
+    "flashcardsTitle": "Flashcards (Level 0)",
+    "flashcardsDesc": "Review terms and pronunciation.",
+    "mcqTitle": "Multiple Choice Quiz (Level 1)",
+    "gapFillTitle": "Gap-fill Exercise (Level 2)",
+    "translateSentencesTitle": "Translate Sentences Ukr > EN (Level 3)",
+    "textTranslationTitle": "Text Translation Ukr > EN (Level 3)",
+    "translationListTitle": "List of Sentences for Translation (Homework)",
+    "translationListDesc": "Generate 15 Ukrainian sentences to translate.",
+    "discussionTitle": "Discussion Questions (Live)",
+    "discussionDesc": "Generate open-ended questions to spark conversation.",
+    "agreeDisagreeTitle": "Agree/Disagree Statements (Live)",
+    "agreeDisagreeDesc": "Create debatable statements to encourage critical thinking.",
+    "matchingTitle": "Matching Exercise",
+    "matchingDesc": "Connect terms with their definitions (6 pairs)."
+  },
+  "vocabChallenge": {
+    "basic": "Basic",
+    "standard": "Standard",
+    "advanced": "Advanced"
+  },
+  "grammarChallenge": {
+    "simple": "Simple",
+    "standard": "Standard",
+    "complex": "Complex"
+  },
+  "loadingScreen": {
+    "generating": "Generating...",
+    "craftingMessage": "The AI is crafting your questions. Please wait a moment."
+  },
+  "quizScreen": {
+    "questionSkipped": "Question skipped. The correct answer is highlighted."
+  },
+  "gapFillScreen": {
+    "questionSkipped": "Question Skipped."
+  },
+  "translationQuizScreen": {
+    "translateQuestion_x_of_y": "Translate: Question {{current}} of {{total}}",
+    "translateLabel": "Translate the following sentence into English:",
+    "textareaPlaceholder": "Type your translation here...",
+    "evaluating": "Evaluating your answer...",
+    "score": "Score:",
+    "questionSkipped": "Question Skipped",
+    "suggestedAnswer": "Suggested answer:"
+  },
+  "textTranslationScreen": {
+    "title": "Text Translation",
+    "subtitle": "Translate the following text into English.",
+    "textareaPlaceholder": "Type your full translation here...",
+    "evaluating": "Evaluating your translation...",
+    "finishAndSeeResults": "Finish & See Results",
+    "originalUkrainianText": "Original Ukrainian Text:",
+    "yourTranslation": "Your Translation:",
+    "suggestedTranslation": "Suggested Translation:"
+  },
+  "matchingScreen": {
+    "title": "Matching Exercise",
+    "description": "Connect the English words to their Ukrainian translations.",
+    "incorrectAttempts": "Incorrect Attempts:"
+  },
+  "flashcardsScreen": {
+    "title": "Flashcards",
+    "noTerms": "No terms found.",
+    "goBack": "Go Back",
+    "clickToFlip": "Click card to flip",
+    "card_x_of_y": "Card {{current}} of {{total}}"
+  },
+  "resultsScreen": {
+    "activityComplete": "Activity Complete!",
+    "resultsTitle": "{{quizType}} Results",
+    "matchingComplete": "Matching Exercise Complete!",
+    "mcqLabel": "Multiple Choice Quiz",
+    "gapFillLabel": "Gap-fill Exercise",
+    "sentenceTranslationLabel": "Sentence Translation Exercise",
+    "textTranslationLabel": "Text Translation Exercise",
+    "matchingLabel": "Matching Exercise",
+    "pairsMatched": "Pairs Matched:",
+    "incorrectAttempts": "Incorrect Attempts:",
+    "shareTextMatching": "I just completed a matching exercise with VocabCrafter AI! 🧠 Try it yourself!",
+    "shareTextScore": "I just scored {{percentage}}% ({{grade}}) on a {{quizType}} created with VocabCrafter AI! 🧠 Try it yourself!",
+    "shareFailed": "Failed to copy",
+    "problematicCopied": "Copied!",
+    "problematicCopyFailed": "Failed to copy"
+  },
+  "discussionScreen": {
+    "copyToClipboard": "Copy to Clipboard"
+  },
+  "translationListScreen": {
+    "copyToClipboard": "Copy to Clipboard",
+    "title": "Sentences for Translation"
+  },
+  "infoModal": {
+    "title": "Application Info",
+    "version": "Version:",
+    "recentChanges": "Recent Changes (v{{version}})",
+    "changeGrammarFocus": "NEW: Added a \"Grammar Focus\" panel! Users can now select specific grammar topics (up to 5) to be tested in the sentence and text translation activities.",
+    "changeFlashcards": "NEW: Added Flashcards! A \"Level 0\" activity to quickly review terms and listen to pronunciation.",
+    "changeTTS": "NEW: Added Text-to-Speech! Click the speaker icon next to words and sentences to hear them read aloud.",
+    "changeInfo": "NEW: Added an Info button and changelog modal.",
+    "changeLogo": "NEW: Added a new app logo and updated the favicon for a more polished look.",
+    "changeSkip": "NEW: Added a \"Skip Question\" button to all quiz types to improve user experience.",
+    "changeExport": "IMPROVED: Temporarily hid the \"Export Results\" feature for refinement."
+  },
+  "grammarSelector": {
+    "title": "Grammar Focus",
+    "notApplicable": "This only applies to translation activities.",
+    "clearSelection": "Clear selection"
+  }
+}

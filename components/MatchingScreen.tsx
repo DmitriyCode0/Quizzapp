@@ -1,5 +1,8 @@
+
 import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { QuizTerm, MatchingUserResult } from '../types';
+import AudioButton from './AudioButton';
+import { useTranslation } from '../hooks/useTranslation';
 
 interface MatchingScreenProps {
   terms: QuizTerm[];
@@ -14,14 +17,16 @@ const MatchingScreen: React.FC<MatchingScreenProps> = ({ terms, onComplete }) =>
   const [matchedPairs, setMatchedPairs] = useState<Record<string, string>>({});
   const [incorrectAttempts, setIncorrectAttempts] = useState(0);
   const [connections, setConnections] = useState<Connection[]>([]);
-  const [flashingPair, setFlashingPair] = useState<{ term: string, def: string } | null>(null);
+  const [flashingPair, setFlashingPair] = useState<string | null>(null);
 
-  const containerRef = useRef<HTMLDivElement>(null);
-  const termRefs = useRef<Record<string, HTMLButtonElement | null>>({});
-  const defRefs = useRef<Record<string, HTMLButtonElement | null>>({});
+  const termRefs = useRef<Record<string, HTMLDivElement | null>>({});
+  const defRefs = useRef<Record<string, HTMLDivElement | null>>({});
+  const containerRef = useRef<HTMLDivElement | null>(null);
+  const { t } = useTranslation();
 
   useEffect(() => {
-    setShuffledDefs([...terms].sort(() => Math.random() - 0.5));
+    const shuffled = [...terms].sort(() => Math.random() - 0.5);
+    setShuffledDefs(shuffled);
   }, [terms]);
 
   const updateConnections = useCallback(() => {
@@ -29,18 +34,18 @@ const MatchingScreen: React.FC<MatchingScreenProps> = ({ terms, onComplete }) =>
     const containerRect = containerRef.current.getBoundingClientRect();
     const newConnections: Connection[] = [];
 
-    Object.entries(matchedPairs).forEach(([term, definition]) => {
-      const termEl = termRefs.current[term];
-      const defEl = defRefs.current[definition];
+    Object.entries(matchedPairs).forEach(([termKey, defKey]) => {
+      const termEl = termRefs.current[termKey];
+      const defEl = defRefs.current[defKey];
       if (termEl && defEl) {
         const termRect = termEl.getBoundingClientRect();
         const defRect = defEl.getBoundingClientRect();
         newConnections.push({
-          x1: termRect.left + termRect.width - containerRect.left,
+          x1: termRect.right - containerRect.left,
           y1: termRect.top + termRect.height / 2 - containerRect.top,
           x2: defRect.left - containerRect.left,
           y2: defRect.top + defRect.height / 2 - containerRect.top,
-          key: `${term}-${definition}`,
+          key: `${termKey}-${defKey}`
         });
       }
     });
@@ -49,132 +54,137 @@ const MatchingScreen: React.FC<MatchingScreenProps> = ({ terms, onComplete }) =>
 
   useEffect(() => {
     updateConnections();
-    const observer = new ResizeObserver(updateConnections);
-    const container = containerRef.current;
-    if (container) {
-        observer.observe(container);
-    }
-    window.addEventListener('resize', updateConnections);
-    return () => {
-        if(container) observer.unobserve(container);
-        window.removeEventListener('resize', updateConnections);
-    };
+    const handleResize = () => updateConnections();
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
   }, [updateConnections]);
-  
+
   const handleTermClick = (term: QuizTerm) => {
-    if (matchedPairs[term.term] || (selectedTerm && selectedTerm.term === term.term)) {
-      setSelectedTerm(null);
-    } else {
-      setSelectedTerm(term);
-    }
+    if (matchedPairs[term.term]) return;
+    setSelectedTerm(term);
   };
 
   const handleDefClick = (def: QuizTerm) => {
-    if (!selectedTerm || matchedPairs[selectedTerm.term]) return;
-
-    const correctDefinition = terms.find(t => t.term === selectedTerm.term)?.definition;
-    if (def.definition === correctDefinition) {
-      setMatchedPairs(prev => ({ ...prev, [selectedTerm.term]: def.definition }));
-      setSelectedTerm(null);
-    } else {
+    if (!selectedTerm || Object.values(matchedPairs).includes(def.term)) return;
+    
+    if (selectedTerm.term === def.term) { // Correct match
+      setMatchedPairs(prev => ({ ...prev, [selectedTerm.term]: def.term }));
+    } else { // Incorrect match
       setIncorrectAttempts(prev => prev + 1);
-      setFlashingPair({ term: selectedTerm.term, def: def.definition });
-      setSelectedTerm(null);
+      const flashKey = `${selectedTerm.term}-${def.term}`;
+      setFlashingPair(flashKey);
+      setTimeout(() => setFlashingPair(null), 500);
     }
+    setSelectedTerm(null);
   };
-  
+
   useEffect(() => {
-    if (terms.length > 0 && Object.keys(matchedPairs).length === terms.length) {
+    if (Object.keys(matchedPairs).length === terms.length) {
       setTimeout(() => {
         onComplete({ incorrectAttempts });
       }, 500);
     }
-  }, [matchedPairs, terms, onComplete, incorrectAttempts]);
+  }, [matchedPairs, terms.length, incorrectAttempts, onComplete]);
+  
+  const getDynamicLine = (e: React.MouseEvent<HTMLDivElement>) => {
+    if (!selectedTerm || !containerRef.current) return null;
+    const termEl = termRefs.current[selectedTerm.term];
+    if (!termEl) return null;
 
-  useEffect(() => {
-    if (flashingPair) {
-      const timer = setTimeout(() => setFlashingPair(null), 500);
-      return () => clearTimeout(timer);
-    }
-  }, [flashingPair]);
+    const containerRect = containerRef.current.getBoundingClientRect();
+    const termRect = termEl.getBoundingClientRect();
 
-  const getButtonClass = (item: QuizTerm, type: 'term' | 'def') => {
-    const isMatched = type === 'term' 
-      ? !!matchedPairs[item.term]
-      : Object.values(matchedPairs).includes(item.definition);
-    
-    if (isMatched) {
-      return 'bg-green-800/50 border-green-600 text-slate-300 cursor-default';
-    }
-    if (selectedTerm && type === 'term' && selectedTerm.term === item.term) {
-      return 'bg-indigo-600/80 border-indigo-400 ring-2 ring-indigo-400';
-    }
-    if (flashingPair && 
-        ((type === 'term' && flashingPair.term === item.term) || 
-         (type === 'def' && flashingPair.def === item.definition))) {
-        return 'bg-red-800/50 border-red-500 animate-shake';
-    }
-    return 'bg-slate-700 hover:bg-slate-600 border-slate-600';
+    const x1 = termRect.right - containerRect.left;
+    const y1 = termRect.top + termRect.height / 2 - containerRect.top;
+    const x2 = e.clientX - containerRect.left;
+    const y2 = e.clientY - containerRect.top;
+
+    return <line x1={x1} y1={y1} x2={x2} y2={y2} stroke="#4f46e5" strokeWidth="3" />;
   };
+  
+  const [dynamicLine, setDynamicLine] = useState<React.ReactElement | null>(null);
 
   return (
     <div className="bg-slate-800 p-8 rounded-lg shadow-2xl w-full max-w-3xl animate-fade-in flex flex-col items-center">
-      <h1 className="text-3xl font-bold text-indigo-400 mb-2">Matching Exercise</h1>
-      <p className="text-slate-300 mb-6">Connect the English words to their Ukrainian translations.</p>
+      <h1 className="text-3xl font-bold text-indigo-400">{t('matchingScreen.title')}</h1>
+      <p className="text-slate-300 mt-1 mb-4">{t('matchingScreen.description')}</p>
+      <p className="text-lg text-slate-200 mb-6">{t('matchingScreen.incorrectAttempts')} <span className="font-bold text-yellow-400">{incorrectAttempts}</span></p>
       
-      <div className="w-full relative" ref={containerRef}>
-        <div className="grid grid-cols-2 gap-x-8 md:gap-x-16 items-center">
-          {/* Terms Column */}
-          <div className="flex flex-col gap-4">
-            {terms.map(term => (
-              <button
+      <div 
+        ref={containerRef}
+        className="relative w-full flex justify-between items-center" 
+        onMouseMove={(e) => setDynamicLine(getDynamicLine(e))}
+        onMouseLeave={() => setDynamicLine(null)}
+      >
+        <div className="w-2/5 flex flex-col gap-3">
+          {terms.map(term => {
+            const isSelected = selectedTerm?.term === term.term;
+            const isMatched = !!matchedPairs[term.term];
+            return (
+              <div 
                 key={term.term}
-// FIX: Changed the ref callback from a concise body to a block body to prevent an implicit return value that caused a type error.
                 ref={el => { termRefs.current[term.term] = el; }}
                 onClick={() => handleTermClick(term)}
-                disabled={!!matchedPairs[term.term]}
-                className={`w-full p-4 rounded-lg border text-lg font-semibold transition-all duration-200 text-left ${getButtonClass(term, 'term')}`}
+                className={`p-3 rounded-lg flex items-center gap-2 transition-all duration-200 ${
+                  isMatched ? 'bg-green-800/50 text-slate-400' : 
+                  isSelected ? 'bg-indigo-600 ring-2 ring-indigo-400 shadow-lg' : 
+                  'bg-slate-700 hover:bg-slate-600 cursor-pointer'
+                }`}
               >
-                {term.term}
-              </button>
-            ))}
-          </div>
-          {/* Definitions Column */}
-          <div className="flex flex-col gap-4">
-            {shuffledDefs.map(def => (
-              <button
-                key={def.definition}
-// FIX: Changed the ref callback from a concise body to a block body to prevent an implicit return value that caused a type error.
-                ref={el => { defRefs.current[def.definition] = el; }}
-                onClick={() => handleDefClick(def)}
-                disabled={Object.values(matchedPairs).includes(def.definition)}
-                className={`w-full p-4 rounded-lg border text-lg font-semibold transition-all duration-200 text-right ${getButtonClass(def, 'def')}`}
-              >
-                {def.definition}
-              </button>
-            ))}
-          </div>
+                <span className="flex-grow">{term.term}</span>
+                <AudioButton textToSpeak={term.term} lang="en-US" />
+              </div>
+            );
+          })}
         </div>
         
-        <svg className="absolute top-0 left-0 w-full h-full pointer-events-none">
-          {connections.map(conn => (
-            <line
-              key={conn.key}
-              x1={conn.x1}
-              y1={conn.y1}
-              x2={conn.x2}
-              y2={conn.y2}
-              stroke="rgba(74, 222, 128, 0.7)"
-              strokeWidth="3"
-              strokeDasharray="5, 5"
-              className="animate-fade-in"
-            />
+        <svg className="absolute top-0 left-0 w-full h-full pointer-events-none z-0">
+          {connections.map(c => (
+            <line key={c.key} x1={c.x1} y1={c.y1} x2={c.x2} y2={c.y2} stroke="#10B981" strokeWidth="3" />
           ))}
+          {dynamicLine}
+          {flashingPair && (() => {
+            const [termKey, defKey] = flashingPair.split('-');
+            const termEl = termRefs.current[termKey];
+            const defEl = defRefs.current[defKey];
+            if (!termEl || !defEl || !containerRef.current) return null;
+            const containerRect = containerRef.current.getBoundingClientRect();
+            const termRect = termEl.getBoundingClientRect();
+            const defRect = defEl.getBoundingClientRect();
+            return (
+              <line
+                x1={termRect.right - containerRect.left}
+                y1={termRect.top + termRect.height / 2 - containerRect.top}
+                x2={defRect.left - containerRect.left}
+                y2={defRect.top + defRect.height / 2 - containerRect.top}
+                stroke="#EF4444"
+                strokeWidth="3"
+                className="animate-ping-once"
+              />
+            );
+          })()}
         </svg>
-      </div>
 
-      <div className="mt-8 text-lg text-slate-400">
-        Incorrect Attempts: <span className="font-bold text-yellow-400">{incorrectAttempts}</span>
+        <div className="w-2/5 flex flex-col gap-3">
+          {shuffledDefs.map(def => {
+            const isMatched = Object.values(matchedPairs).includes(def.term);
+            return (
+              <div 
+                key={def.term}
+                ref={el => { defRefs.current[def.term] = el; }}
+                onClick={() => handleDefClick(def)}
+                className={`p-3 rounded-lg flex items-center gap-2 transition-all duration-200 ${
+                  isMatched ? 'bg-green-800/50 text-slate-400' :
+                  selectedTerm ? 'bg-slate-700 hover:bg-indigo-500 cursor-pointer' :
+                  'bg-slate-700'
+                }`}
+              >
+                <span className="flex-grow">{def.definition}</span>
+                <AudioButton textToSpeak={def.definition} lang="uk-UA" />
+              </div>
+            );
+          })}
+        </div>
       </div>
     </div>
   );

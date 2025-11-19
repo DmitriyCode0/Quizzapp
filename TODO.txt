@@ -1,0 +1,47 @@
+# Feature Implementation Roadmap
+
+This file contains a list of features discussed for the application.
+✅ - Implemented
+⏳ - In Progress / Partially Implemented
+📋 - Planned / To-Do
+
+---
+
+## Core Functionality & UX
+
+- 📋 **AI-Powered Input Parsing & Cleaning:**
+  - Implement a pre-processing step using the Gemini API to handle various user input formats automatically.
+  - **Case 1 (Words only):** If the user pastes a list of English words, call the API to generate Ukrainian translations before creating the activity.
+  - **Case 2 (Messy format):** If the input format is unclear (e.g., uses commas, hyphens, or inconsistent spacing instead of tabs), call the API to reformat it into the required `term\tdefinition` structure.
+  - **Case 3 (Correct format):** If the format is already correct, bypass the AI cleaning step and proceed directly to activity generation.
+  - This will make the app much more robust and user-friendly, especially on mobile devices.
+
+- ✅ **Skip Question Button:**
+  - Added a "Skip Question" button to all quiz types (MCQ, Gap-fill, Translation) to improve user experience.
+
+---
+
+## Activities
+
+- ✅ **Flashcards Activity (Level 0):**
+  - Added a simple flashcard mode for users to quickly review terms and listen to pronunciation before starting a quiz.
+
+---
+
+## Audio Features
+
+- ⏳ **Text-to-Speech (TTS):**
+  - ✅ **Browser-Native TTS:** Implemented basic text-to-speech functionality using the browser's built-in Web Speech API.
+  - 📋 **Upgrade to Gemini TTS API:**
+    - Replace the current browser-native API with the `gemini-2.5-flash-preview-tts` model for higher-quality, more consistent audio.
+    - Requires implementing logic to handle the raw PCM audio data returned by the API using the browser's `AudioContext`.
+
+---
+
+## UI & Branding
+
+- ✅ **Application Logo:**
+  - Created and integrated a simple, clean logo for branding on the main screens and as a loading spinner. Updated the site favicon.
+
+- ✅ **Info Panel & Changelog:**
+  - Added a persistent "Info" button in the corner that opens a modal with the current version number and a changelog of recent updates.

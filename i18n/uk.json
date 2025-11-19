@@ -1,0 +1,160 @@
+{
+  "common": {
+    "create": "Створити",
+    "info": "Інфо",
+    "close": "Закрити",
+    "shareResults": "Поділитися результатами",
+    "copied": "Скопійовано!",
+    "copyProblematic": "Копіювати складні",
+    "createSomethingNew": "Створити щось нове",
+    "nextQuestion": "Наступне запитання",
+    "finishQuiz": "Завершити тест",
+    "skipQuestion": "Пропустити запитання",
+    "checkAnswer": "Перевірити відповідь",
+    "finish": "Завершити",
+    "finishReview": "Завершити перегляд",
+    "error": "Помилка",
+    "loading": "Завантаження...",
+    "paused": "Пауза",
+    "resume": "Продовжити",
+    "timesUp": "Час вийшов!",
+    "skipped": "Пропущено",
+    "question": "Запитання",
+    "of": "з",
+    "question_x_of_y": "Запитання {{current}} з {{total}}",
+    "correct": "Правильно!",
+    "notQuite": "Не зовсім!",
+    "correctAnswerIs": "Правильна відповідь: {{answer}}",
+    "yourAnswer": "Ваша відповідь:",
+    "correctAnswer": "Правильна відповідь:",
+    "feedback": "Зворотний зв'язок:",
+    "yourScore": "Ваш результат",
+    "yourResult": "Ваш результат",
+    "reviewAnswers": "Переглянути відповіді",
+    "showHint": "Показати підказку",
+    "hintUkrainian": "Підказка (Українською):"
+  },
+  "inputScreen": {
+    "subtitle": "Перетворюйте свої списки слів на інтерактивні тести, дискусійні запитання та багато іншого!",
+    "instructionsTitle": "Інструкції:",
+    "instruction1": "Перейдіть до нашого",
+    "instruction1Link": "Vocab Parser Gem",
+    "instruction2": "Вставте ваші слова в будь-якому форматі (наприклад, простий список, таблиця, невпорядковані нотатки).",
+    "instruction3": "Натисніть кнопку «Копіювати» у згенерованому блоці коду.",
+    "instruction4": "Вставте відформатований текст у поле нижче.",
+    "textareaPlaceholder": "Вставте ваш відформатований текст тут...",
+    "cefrLevel": "Рівень CEFR",
+    "a1ukr": "A1 (Укр)",
+    "vocabChallenge": "Складність лексики",
+    "grammarChallenge": "Складність граматики",
+    "modalTitle": "Що б ви хотіли створити?",
+    "timedMode": "Режим на час",
+    "timedModeDesc": "(для тестів)",
+    "flashcardsTitle": "Картки (Рівень 0)",
+    "flashcardsDesc": "Повторення слів та вимови.",
+    "mcqTitle": "Тест з вибором відповіді (Рівень 1)",
+    "gapFillTitle": "Вправа на заповнення пропусків (Рівень 2)",
+    "translateSentencesTitle": "Переклад речень Укр > Англ (Рівень 3)",
+    "textTranslationTitle": "Переклад тексту Укр > Англ (Рівень 3)",
+    "translationListTitle": "Список речень для перекладу (Д/З)",
+    "translationListDesc": "Згенерувати 15 українських речень для перекладу.",
+    "discussionTitle": "Дискусійні запитання (Наживо)",
+    "discussionDesc": "Згенерувати відкриті запитання для розмови.",
+    "agreeDisagreeTitle": "Твердження 'Згоден/Незгоден' (Наживо)",
+    "agreeDisagreeDesc": "Створити спірні твердження для розвитку критичного мислення.",
+    "matchingTitle": "Вправа на відповідність",
+    "matchingDesc": "З'єднайте терміни з їхніми визначеннями (6 пар)."
+  },
+  "vocabChallenge": {
+    "basic": "Базова",
+    "standard": "Стандартна",
+    "advanced": "Просунута"
+  },
+  "grammarChallenge": {
+    "simple": "Проста",
+    "standard": "Стандартна",
+    "complex": "Складна"
+  },
+  "loadingScreen": {
+    "generating": "Генерація...",
+    "craftingMessage": "ШІ створює ваші запитання. Будь ласка, зачекайте."
+  },
+  "quizScreen": {
+    "questionSkipped": "Запитання пропущено. Правильна відповідь виділена."
+  },
+  "gapFillScreen": {
+    "questionSkipped": "Запитання пропущено."
+  },
+  "translationQuizScreen": {
+    "translateQuestion_x_of_y": "Переклад: Запитання {{current}} з {{total}}",
+    "translateLabel": "Перекладіть наступне речення англійською:",
+    "textareaPlaceholder": "Введіть ваш переклад тут...",
+    "evaluating": "Оцінювання вашої відповіді...",
+    "score": "Результат:",
+    "questionSkipped": "Запитання пропущено",
+    "suggestedAnswer": "Рекомендована відповідь:"
+  },
+  "textTranslationScreen": {
+    "title": "Переклад тексту",
+    "subtitle": "Перекладіть наступний текст англійською.",
+    "textareaPlaceholder": "Введіть ваш повний переклад тут...",
+    "evaluating": "Оцінювання вашого перекладу...",
+    "finishAndSeeResults": "Завершити та переглянути результати",
+    "originalUkrainianText": "Оригінальний український текст:",
+    "yourTranslation": "Ваш переклад:",
+    "suggestedTranslation": "Рекомендований переклад:"
+  },
+  "matchingScreen": {
+    "title": "Вправа на відповідність",
+    "description": "З'єднайте англійські слова з їхніми українськими перекладами.",
+    "incorrectAttempts": "Неправильні спроби:"
+  },
+  "flashcardsScreen": {
+    "title": "Картки",
+    "noTerms": "Слова не знайдено.",
+    "goBack": "Повернутися",
+    "clickToFlip": "Натисніть, щоб перевернути",
+    "card_x_of_y": "Картка {{current}} з {{total}}"
+  },
+  "resultsScreen": {
+    "activityComplete": "Вправу завершено!",
+    "resultsTitle": "Результати: {{quizType}}",
+    "matchingComplete": "Вправу на відповідність завершено!",
+    "mcqLabel": "Тест з вибором відповіді",
+    "gapFillLabel": "Вправа на заповнення пропусків",
+    "sentenceTranslationLabel": "Переклад речень",
+    "textTranslationLabel": "Переклад тексту",
+    "matchingLabel": "Вправа на відповідність",
+    "pairsMatched": "Зіставлено пар:",
+    "incorrectAttempts": "Неправильні спроби:",
+    "shareTextMatching": "Я щойно завершив(ла) вправу на відповідність у VocabCrafter AI! 🧠 Спробуйте самі!",
+    "shareTextScore": "Я щойно отримав(ла) {{percentage}}% ({{grade}}) у вправі '{{quizType}}', створеній за допомогою VocabCrafter AI! 🧠 Спробуйте самі!",
+    "shareFailed": "Не вдалося скопіювати",
+    "problematicCopied": "Скопійовано!",
+    "problematicCopyFailed": "Не вдалося скопіювати"
+  },
+  "discussionScreen": {
+    "copyToClipboard": "Копіювати в буфер обміну"
+  },
+  "translationListScreen": {
+    "copyToClipboard": "Копіювати в буфер обміну",
+    "title": "Речення для перекладу"
+  },
+  "infoModal": {
+    "title": "Інформація про додаток",
+    "version": "Версія:",
+    "recentChanges": "Останні зміни (v{{version}})",
+    "changeGrammarFocus": "НОВЕ: Додано панель \"Граматичний фокус\"! Тепер користувачі можуть обирати конкретні граматичні теми (до 5) для перевірки у вправах з перекладу речень та тексту.",
+    "changeFlashcards": "НОВЕ: Додано Картки! Вправа «Рівень 0» для швидкого повторення слів та прослуховування вимови.",
+    "changeTTS": "НОВЕ: Додано озвучування тексту! Натискайте іконку динаміка біля слів та речень, щоб почути їх.",
+    "changeInfo": "НОВЕ: Додано кнопку «Інфо» та вікно зі списком змін.",
+    "changeLogo": "НОВЕ: Додано новий логотип та оновлено іконку сайту для кращого вигляду.",
+    "changeSkip": "НОВЕ: Додано кнопку «Пропустити запитання» до всіх типів тестів для зручності.",
+    "changeExport": "ПОКРАЩЕНО: Тимчасово приховано функцію «Експорт результатів» для доопрацювання."
+  },
+    "grammarSelector": {
+    "title": "Граматичний фокус",
+    "notApplicable": "Застосовується лише до вправ на переклад.",
+    "clearSelection": "Очистити вибір"
+  }
+}
