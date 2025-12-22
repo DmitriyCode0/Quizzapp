@@ -1,78 +1,66 @@
-import React, { useState, useEffect, Dispatch, SetStateAction } from 'react';
-import { GenerationType, CEFRLevel, VocabularyChallenge, GrammarChallenge } from '../types';
+
+import React, { useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { GenerationType, CEFRLevel, VocabularyChallenge, GrammarChallenge, TeacherPersona } from '../types';
 import Logo from './Logo';
 import { useTranslation } from '../hooks/useTranslation';
 import GrammarSelectorPanel from './GrammarSelectorPanel';
-import { grammarPools } from '../data/grammarData';
+import HelpIcon from './icons/HelpIcon';
+import Tooltip from './Tooltip';
+import CloseIcon from './icons/CloseIcon';
+import { useInputForm } from '../hooks/useInputForm';
+
+import SmartParserPanel from './input/SmartParserPanel';
+import ManualInputPanel from './input/ManualInputPanel';
+import ConfigurationPanel from './input/ConfigurationPanel';
+import ActivitySelectionModal from './input/ActivitySelectionModal';
 
 interface InputScreenProps {
-  onGenerate: (data: string, type: GenerationType, cefrLevel: CEFRLevel, vocabChallenge: VocabularyChallenge, gramChallenge: GrammarChallenge, isTimed: boolean, customGrammarTopics?: string[]) => void;
+  initialData?: string;
+  onGenerate: (data: string, type: GenerationType, cefrLevel: CEFRLevel, studentLevel: CEFRLevel, vocabChallenge: VocabularyChallenge, gramChallenge: GrammarChallenge, teacherPersona: TeacherPersona, isTimed: boolean, customGrammarTopics?: string[], customTopic?: string) => void;
+  onOpenHelp: () => void;
   error: string | null;
 }
 
-const cefrOptions: CEFRLevel[] = ['A1', 'A2', 'B1', 'B2', 'C1', 'C2', 'A1 ukr'];
-const vocabOptions: VocabularyChallenge[] = ['Basic', 'Standard', 'Advanced'];
-const grammarOptions: GrammarChallenge[] = ['Simple', 'Standard', 'Complex'];
-
-interface SettingsButtonProps<T extends string> {
-  option: T;
-  selected: T;
-  onClick: Dispatch<SetStateAction<T>>;
-  children: React.ReactNode;
-}
-
-const SettingsButton = <T extends string>({ option, selected, onClick, children }: SettingsButtonProps<T>) => {
-  return (
-    <button
-        type="button"
-        onClick={() => onClick(option)}
-        className={`px-3 py-2 rounded-lg font-semibold transition-all text-sm flex-grow text-center shadow-sm ${
-            selected === option
-                ? 'bg-indigo-600 text-white shadow-lg ring-2 ring-indigo-500/50 ring-offset-2 ring-offset-slate-800'
-                : 'bg-slate-700 hover:bg-slate-600 text-slate-300'
-        }`}
-    >
-        {children}
-    </button>
-  );
-}
-
-
-const InputScreen: React.FC<InputScreenProps> = ({ onGenerate, error }) => {
-  const [quizletData, setQuizletData] = useState('');
-  const [showModal, setShowModal] = useState(false);
-  const [generationType, setGenerationType] = useState<GenerationType | null>(null);
-  const [cefrLevel, setCefrLevel] = useState<CEFRLevel>('B1');
-  const [vocabChallenge, setVocabChallenge] = useState<VocabularyChallenge>('Standard');
-  const [gramChallenge, setGramChallenge] = useState<GrammarChallenge>('Standard');
-  const [isTimed, setIsTimed] = useState(false);
-  const [selectedGrammarTopics, setSelectedGrammarTopics] = useState<string[]>([]);
+const InputScreen: React.FC<InputScreenProps> = ({ initialData, onGenerate, onOpenHelp, error }) => {
   const { t } = useTranslation();
+  const navigate = useNavigate();
+  
+  const {
+      // Data
+      quizletData, setQuizletData,
+      rawInput, setRawInput,
+      newListName, setNewListName,
+      cefrLevel, setCefrLevel, // Grammar Topic Level
+      studentLevel, setStudentLevel, // Student Proficiency Level
+      vocabChallenge, setVocabChallenge,
+      gramChallenge, setGramChallenge,
+      teacherPersona, setTeacherPersona,
+      isTimed, setIsTimed,
+      customTopic, setCustomTopic,
+      selectedGrammarTopics,
+      availableGrammarTopics,
+      
+      // UI State
+      isParsing,
+      showModal, setShowModal,
+      showSavePrompt, setShowSavePrompt,
+      isGrammarMobileOpen, setIsGrammarMobileOpen,
 
-  const effectiveCefrLevel = cefrLevel === 'A1 ukr' ? 'A1' : cefrLevel;
-  const availableGrammarTopics = grammarPools[effectiveCefrLevel] || [];
+      // Handlers
+      handleParse,
+      handleLoadSample,
+      handleSaveList,
+      handleGenerationTypeSelect,
+      handleTopicToggle
+  } = useInputForm({ onGenerate });
 
+  // Update data from props if provided
   useEffect(() => {
-    // Set default random grammar topics when CEFR level changes
-    const shuffled = [...availableGrammarTopics].sort(() => 0.5 - Math.random());
-    setSelectedGrammarTopics(shuffled.slice(0, 3));
-  }, [cefrLevel]);
-
-  const handleTopicToggle = (topic: string) => {
-    setSelectedGrammarTopics(prev => {
-      if (prev.includes(topic)) {
-        // Remove topic, but only if more than 1 is selected
-        return prev.length > 1 ? prev.filter(t => t !== topic) : prev;
-      } else {
-        // Add topic, but only if less than 5 are selected
-        return prev.length < 5 ? [...prev, topic] : prev;
-      }
-    });
-  };
-
-  const handleClearSelection = () => {
-    setSelectedGrammarTopics([]);
-  };
+    if (initialData) {
+        setQuizletData(initialData);
+    }
+  }, [initialData, setQuizletData]);
 
   const handleCreateClick = (e: React.FormEvent) => {
     e.preventDefault();
@@ -80,202 +68,226 @@ const InputScreen: React.FC<InputScreenProps> = ({ onGenerate, error }) => {
       setShowModal(true);
     }
   };
-  
-  const handleGenerationTypeSelect = (type: GenerationType) => {
-    setShowModal(false);
-    const isQuiz = ['mcq', 'gap_fill', 'translate_uk_en'].includes(type);
-    const isTranslationActivity = ['translate_uk_en', 'text_translation'].includes(type);
-    
-    onGenerate(
-        quizletData, 
-        type, 
-        cefrLevel, 
-        vocabChallenge, 
-        gramChallenge, 
-        isQuiz && isTimed, 
-        isTranslationActivity ? selectedGrammarTopics : undefined
-    );
-  }
-  
-  const isGrammarPanelRelevant = generationType ? ['translate_uk_en', 'text_translation'].includes(generationType) : true;
 
   return (
     <>
-      <div className="bg-slate-800 p-8 rounded-lg shadow-2xl animate-fade-in flex flex-col md:flex-row gap-8">
-        <GrammarSelectorPanel
-          availableTopics={availableGrammarTopics}
-          selectedTopics={selectedGrammarTopics}
-          onTopicToggle={handleTopicToggle}
-          onClearSelection={handleClearSelection}
-          isRelevant={isGrammarPanelRelevant}
-        />
+      <div className="flex flex-col gap-10 animate-fade-in">
+        {/* Header & Navigation */}
+        <div className="flex flex-col md:flex-row justify-between items-center gap-6">
+            <div className="flex items-center gap-3">
+                <div className="p-2 bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-slate-100 dark:border-slate-700">
+                    <Logo className="h-8 w-8 text-indigo-600 dark:text-indigo-400" />
+                </div>
+                <div>
+                    <h1 className="text-xl font-bold text-slate-900 dark:text-white tracking-tight">VocabCrafter AI</h1>
+                    <p className="text-slate-500 dark:text-slate-400 text-sm">{t('inputScreen.subtitle')}</p>
+                </div>
+            </div>
 
-        <div className="flex-grow flex flex-col gap-6 text-center">
-            <Logo />
-            <h1 className="text-4xl font-bold text-indigo-400">VocabCrafter AI</h1>
-            <p className="text-slate-300">
-            {t('inputScreen.subtitle')}
-            </p>
+            {/* Top Actions (Desktop) */}
+            <div className="hidden md:flex items-center gap-3">
+                <button 
+                    onClick={onOpenHelp}
+                    className="text-slate-500 dark:text-slate-400 hover:text-indigo-600 dark:hover:text-indigo-400 px-3 py-2 rounded-lg transition-colors flex items-center gap-2 text-sm font-medium"
+                >
+                    <HelpIcon className="h-4 w-4" />
+                    {t('common.howItWorks')}
+                </button>
+                <div className="h-6 w-px bg-slate-200 dark:bg-slate-700 mx-1"></div>
+                <button 
+                    onClick={() => navigate('/grammar')}
+                    className="bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 border border-slate-200 dark:border-slate-700 px-4 py-2 rounded-lg text-sm font-medium transition-all shadow-sm hover:shadow flex items-center gap-2"
+                >
+                    <span>{t('grammarLibrary.menuTitle')}</span>
+                    <span className="text-[10px] bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400 px-1.5 py-0.5 rounded font-bold uppercase">{t('common.new')}</span>
+                </button>
+                <button 
+                    onClick={() => navigate('/dashboard')}
+                    className="bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 border border-slate-200 dark:border-slate-700 px-4 py-2 rounded-lg text-sm font-medium transition-all shadow-sm hover:shadow flex items-center gap-2"
+                >
+                    <span>{t('dashboard.myLibrary')}</span>
+                </button>
+            </div>
+        </div>
+
+        {/* Main Grid Layout */}
+        <div className="grid grid-cols-1 md:grid-cols-12 gap-8 items-start">
             
-            <div className="text-left bg-slate-900 p-4 rounded-md border border-slate-700">
-            <h2 className="font-semibold text-lg mb-2 text-slate-200">{t('inputScreen.instructionsTitle')}</h2>
-            <ol className="list-decimal list-inside text-sm text-slate-400 space-y-2">
-                <li>
-                    {t('inputScreen.instruction1')}{' '}
-                    <a 
-                        href="https://gemini.google.com/gem/1dc4RQWRgZ4N1KOj8USv3PMxk94yCz9Pw?usp=sharing" 
-                        target="_blank" 
-                        rel="noopener noreferrer"
-                        className="text-indigo-400 hover:underline font-semibold"
-                    >
-                        {t('inputScreen.instruction1Link')}
-                    </a>.
-                </li>
-                <li>{t('inputScreen.instruction2')}</li>
-                <li>{t('inputScreen.instruction3')}</li>
-                <li>{t('inputScreen.instruction4')}</li>
-            </ol>
+            {/* LEFT SIDEBAR (Config) - Spans 3 columns */}
+            <div className="hidden md:flex md:col-span-3 flex-col gap-8 sticky top-8">
+                {/* Topic Selector */}
+                <div className="flex flex-col gap-2">
+                    <div className="flex items-center justify-between">
+                        <label className="font-semibold text-slate-700 dark:text-slate-300 text-sm">
+                            {t('topicSelector.title')}
+                        </label>
+                        <span className="text-[10px] font-bold text-amber-600 dark:text-amber-400 bg-amber-100 dark:bg-amber-900/30 px-2 py-0.5 rounded-full">{t('topicSelector.betaLabel')}</span>
+                    </div>
+                    <input
+                        type="text"
+                        value={customTopic}
+                        onChange={(e) => setCustomTopic(e.target.value)}
+                        placeholder={t('topicSelector.placeholder')}
+                        className="w-full p-3 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-sm text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-slate-500 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 focus:outline-none transition shadow-sm"
+                    />
+                </div>
+
+                {/* Grammar Panel */}
+                <GrammarSelectorPanel
+                    availableTopics={availableGrammarTopics}
+                    selectedTopics={selectedGrammarTopics}
+                    onTopicToggle={handleTopicToggle}
+                    isRelevant={true}
+                />
             </div>
 
-            <form onSubmit={handleCreateClick} className="flex flex-col gap-4">
-            <textarea
-                value={quizletData}
-                onChange={(e) => setQuizletData(e.target.value)}
-                placeholder={t('inputScreen.textareaPlaceholder')}
-                className="w-full h-48 p-4 bg-slate-700 border border-slate-600 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:outline-none transition duration-200 resize-none"
-            />
-            <div className="flex flex-col gap-6 p-4 bg-slate-900/50 rounded-lg border border-slate-700">
-                <div className="flex flex-col gap-3">
-                    <label className="font-semibold text-slate-300 text-sm text-left">{t('inputScreen.cefrLevel')}</label>
-                    <div className="flex flex-wrap gap-2">
-                        {cefrOptions.map(option => (
-                            <SettingsButton<CEFRLevel> key={option} option={option} selected={cefrLevel} onClick={setCefrLevel}>
-                                {option === 'A1 ukr' ? t('inputScreen.a1ukr') : option}
-                            </SettingsButton>
-                        ))}
-                    </div>
+            {/* MAIN CONTENT (Input) - Spans 9 columns */}
+            <div className="md:col-span-9 flex flex-col gap-8">
+                
+                {/* Mobile Topic & Grammar Trigger */}
+                <div className="md:hidden flex gap-2">
+                     <input
+                        type="text"
+                        value={customTopic}
+                        onChange={(e) => setCustomTopic(e.target.value)}
+                        placeholder={t('topicSelector.placeholder')}
+                        className="flex-grow p-3 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-base text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-slate-500 shadow-sm"
+                    />
+                     <button 
+                        type="button"
+                        onClick={() => setIsGrammarMobileOpen(true)}
+                        className="bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 p-3 rounded-lg border border-slate-200 dark:border-slate-700 shadow-sm relative active:bg-slate-50 dark:active:bg-slate-700"
+                     >
+                         <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4" />
+                        </svg>
+                        {selectedGrammarTopics.length > 0 && (
+                            <span className="absolute -top-2 -right-2 bg-indigo-600 text-white text-[10px] font-bold w-5 h-5 flex items-center justify-center rounded-full shadow-sm">
+                                {selectedGrammarTopics.length}
+                            </span>
+                        )}
+                     </button>
                 </div>
-                <div className="flex flex-col gap-3">
-                    <label className="font-semibold text-slate-300 text-sm text-left">{t('inputScreen.vocabChallenge')}</label>
-                    <div className="flex flex-wrap gap-2">
-                        {vocabOptions.map(option => (
-                            <SettingsButton<VocabularyChallenge> key={option} option={option} selected={vocabChallenge} onClick={setVocabChallenge}>
-                            {t(`vocabChallenge.${option.toLowerCase()}`, { defaultValue: option })}
-                            </SettingsButton>
-                        ))}
-                    </div>
-                </div>
-                <div className="flex flex-col gap-3">
-                    <label className="font-semibold text-slate-300 text-sm text-left">{t('inputScreen.grammarChallenge')}</label>
-                    <div className="flex flex-wrap gap-2">
-                        {grammarOptions.map(option => (
-                            <SettingsButton<GrammarChallenge> key={option} option={option} selected={gramChallenge} onClick={setGramChallenge}>
-                                {t(`grammarChallenge.${option.toLowerCase()}`, { defaultValue: option })}
-                            </SettingsButton>
-                        ))}
-                    </div>
-                </div>
-            </div>
 
-            {error && <p className="text-red-400 text-sm mt-2">{error}</p>}
-            <button
-                type="submit"
-                disabled={!quizletData.trim()}
-                className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3 px-4 rounded-lg transition duration-300 ease-in-out transform hover:scale-105 disabled:bg-slate-600 disabled:cursor-not-allowed disabled:transform-none mt-2"
-            >
-                {t('common.create')}
-            </button>
-            </form>
+                <SmartParserPanel 
+                    rawInput={rawInput}
+                    onRawInputChange={setRawInput}
+                    onParse={handleParse}
+                    isParsing={isParsing}
+                />
+
+                <form onSubmit={handleCreateClick} className="flex flex-col gap-8">
+                    <ManualInputPanel 
+                        quizletData={quizletData}
+                        onDataChange={setQuizletData}
+                        onLoadSample={handleLoadSample}
+                        onSavePrompt={() => setShowSavePrompt(true)}
+                    />
+
+                    <div className="border-t border-slate-200 dark:border-slate-700 pt-8">
+                        <ConfigurationPanel 
+                            cefrLevel={cefrLevel}
+                            setCefrLevel={setCefrLevel}
+                            studentLevel={studentLevel}
+                            setStudentLevel={setStudentLevel}
+                            vocabChallenge={vocabChallenge}
+                            setVocabChallenge={setVocabChallenge}
+                            gramChallenge={gramChallenge}
+                            setGramChallenge={setGramChallenge}
+                            teacherPersona={teacherPersona}
+                            setTeacherPersona={setTeacherPersona}
+                        />
+                    </div>
+
+                    {error && <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 text-red-600 dark:text-red-300 p-3 rounded-lg text-sm">{error}</div>}
+                    
+                    {/* Desktop Create Button */}
+                    <div className="hidden md:block pt-4">
+                         <button
+                            type="submit"
+                            disabled={!quizletData.trim()}
+                            className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-semibold py-4 px-6 rounded-xl transition-all duration-200 shadow-md hover:shadow-lg transform hover:-translate-y-0.5 disabled:bg-slate-300 dark:disabled:bg-slate-700 disabled:cursor-not-allowed disabled:transform-none disabled:shadow-none text-lg flex items-center justify-center gap-2"
+                        >
+                            <span>{t('common.create')}</span>
+                            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                                <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-8.707l-3-3a1 1 0 00-1.414 1.414L10.586 9H7a1 1 0 100 2h3.586l-1.293 1.293a1 1 0 101.414 1.414l3-3a1 1 0 000-1.414z" clipRule="evenodd" />
+                            </svg>
+                        </button>
+                    </div>
+                </form>
+            </div>
         </div>
       </div>
 
-      {showModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center z-50 animate-fade-in" onClick={() => setShowModal(false)}>
-          <div className="bg-slate-800 rounded-lg shadow-2xl p-8 max-w-lg w-full flex flex-col gap-4" onClick={(e) => e.stopPropagation()}>
-            <h2 className="text-3xl font-bold text-center text-indigo-400 mb-2">{t('inputScreen.modalTitle')}</h2>
-            
-            <div className="flex items-center justify-center gap-4 p-3 bg-slate-900/50 rounded-lg border border-slate-700 mb-2">
-                <span className="font-semibold text-slate-300">{t('inputScreen.timedMode')}</span>
-                <span className="text-xs text-slate-400">{t('inputScreen.timedModeDesc')}</span>
-                <button
-                    type="button"
-                    onClick={() => setIsTimed(!isTimed)}
-                    className={`relative inline-flex items-center h-6 rounded-full w-11 transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-slate-800 focus:ring-indigo-500 ${isTimed ? 'bg-indigo-600' : 'bg-slate-600'}`}
-                    aria-pressed={isTimed}
-                >
-                    <span className={`inline-block w-4 h-4 transform bg-white rounded-full transition-transform ${isTimed ? 'translate-x-6' : 'translate-x-1'}`} />
-                </button>
-            </div>
+      {/* MOBILE STICKY FOOTER */}
+      <div className="md:hidden fixed bottom-0 left-0 right-0 p-4 bg-white dark:bg-slate-900 border-t border-slate-200 dark:border-slate-800 z-40 shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.05)]">
+            <button
+                onClick={handleCreateClick}
+                disabled={!quizletData.trim()}
+                className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3.5 px-4 rounded-xl shadow-lg disabled:bg-slate-300 dark:disabled:bg-slate-700 disabled:cursor-not-allowed disabled:shadow-none"
+            >
+                {t('common.create')}
+            </button>
+      </div>
 
-            <div className="flex flex-col gap-4 max-h-[60vh] overflow-y-auto pr-2">
-                <button
-                    onClick={() => handleGenerationTypeSelect('flashcards')}
-                    className="text-left w-full p-4 bg-slate-700 hover:bg-slate-600 rounded-lg transition-colors duration-200"
+      {/* MOBILE GRAMMAR DRAWER */}
+      {isGrammarMobileOpen && (
+        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center pointer-events-none">
+            <div className="absolute inset-0 bg-slate-900/20 backdrop-blur-sm pointer-events-auto transition-opacity" onClick={() => setIsGrammarMobileOpen(false)}></div>
+            <div className="relative z-10 bg-white dark:bg-slate-900 w-full max-w-lg rounded-t-2xl sm:rounded-xl p-6 pointer-events-auto animate-slide-up shadow-2xl max-h-[85vh] flex flex-col border border-slate-200 dark:border-slate-800">
+                <div className="flex justify-between items-center mb-6">
+                    <h3 className="text-xl font-bold text-slate-900 dark:text-white">{t('grammarSelector.title')}</h3>
+                    <button onClick={() => setIsGrammarMobileOpen(false)} className="p-2 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 rounded-full text-slate-500 dark:text-slate-400 transition-colors">
+                        <CloseIcon />
+                    </button>
+                </div>
+                <div className="overflow-y-auto flex-grow mb-4 -mx-2 px-2">
+                    <GrammarSelectorPanel
+                        availableTopics={availableGrammarTopics}
+                        selectedTopics={selectedGrammarTopics}
+                        onTopicToggle={handleTopicToggle}
+                        isRelevant={true}
+                        className="w-full"
+                    />
+                </div>
+                <button 
+                    onClick={() => setIsGrammarMobileOpen(false)}
+                    className="w-full bg-indigo-600 text-white font-bold py-3.5 rounded-xl shadow-md"
                 >
-                    <h3 className="text-xl font-bold text-slate-100">{t('inputScreen.flashcardsTitle')}</h3>
-                    <p className="text-slate-400">{t('inputScreen.flashcardsDesc')}</p>
-                </button>
-                <button
-                    onClick={() => handleGenerationTypeSelect('mcq')}
-                    className="text-left w-full p-4 bg-slate-700 hover:bg-slate-600 rounded-lg transition-colors duration-200"
-                >
-                    <h3 className="text-xl font-bold text-slate-100">{t('inputScreen.mcqTitle')}</h3>
-                    
-                </button>
-                
-                <button
-                    onClick={() => handleGenerationTypeSelect('gap_fill')}
-                    className="text-left w-full p-4 bg-slate-700 hover:bg-slate-600 rounded-lg transition-colors duration-200"
-                >
-                    <h3 className="text-xl font-bold text-slate-100">{t('inputScreen.gapFillTitle')}</h3>
-                    
-                </button>
-                <button
-                    onClick={() => handleGenerationTypeSelect('translate_uk_en')}
-                    className="text-left w-full p-4 bg-slate-700 hover:bg-slate-600 rounded-lg transition-colors duration-200"
-                >
-                    <h3 className="text-xl font-bold text-slate-100">{t('inputScreen.translateSentencesTitle')}</h3>
-                   
-                </button>
-                <button
-                    onClick={() => handleGenerationTypeSelect('text_translation')}
-                    className="text-left w-full p-4 bg-slate-700 hover:bg-slate-600 rounded-lg transition-colors duration-200"
-                >
-                    <h3 className="text-xl font-bold text-slate-100">{t('inputScreen.textTranslationTitle')}</h3>
-                    
-                </button>
-                <button
-                    onClick={() => handleGenerationTypeSelect('translation_list')}
-                    className="text-left w-full p-4 bg-slate-700 hover:bg-slate-600 rounded-lg transition-colors duration-200"
-                >
-                    <h3 className="text-xl font-bold text-slate-100">{t('inputScreen.translationListTitle')}</h3>
-                    <p className="text-slate-400">{t('inputScreen.translationListDesc')}</p>
-                </button>
-                <button
-                    onClick={() => handleGenerationTypeSelect('discussion')}
-                    className="text-left w-full p-4 bg-slate-700 hover:bg-slate-600 rounded-lg transition-colors duration-200"
-                >
-                    <h3 className="text-xl font-bold text-slate-100">{t('inputScreen.discussionTitle')}</h3>
-                    <p className="text-slate-400">{t('inputScreen.discussionDesc')}</p>
-                </button>
-                <button
-                    onClick={() => handleGenerationTypeSelect('agree_disagree')}
-                    className="text-left w-full p-4 bg-slate-700 hover:bg-slate-600 rounded-lg transition-colors duration-200"
-                >
-                    <h3 className="text-xl font-bold text-slate-100">{t('inputScreen.agreeDisagreeTitle')}</h3>
-                    <p className="text-slate-400">{t('inputScreen.agreeDisagreeDesc')}</p>
-                </button>
-                <button
-                    onClick={() => handleGenerationTypeSelect('matching')}
-                    className="text-left w-full p-4 bg-slate-700 hover:bg-slate-600 rounded-lg transition-colors duration-200"
-                >
-                    <h3 className="text-xl font-bold text-slate-100">{t('inputScreen.matchingTitle')}</h3>
-                    <p className="text-slate-400">{t('inputScreen.matchingDesc')}</p>
+                    {t('common.done')}
                 </button>
             </div>
-          </div>
         </div>
       )}
+
+      {/* SAVE LIST PROMPT */}
+      {showSavePrompt && (
+        <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm flex items-center justify-center z-50 animate-fade-in px-4" onClick={() => setShowSavePrompt(false)}>
+            <div className="bg-white dark:bg-slate-900 rounded-xl shadow-2xl p-6 max-w-sm w-full flex flex-col gap-4 border border-slate-200 dark:border-slate-800" onClick={(e) => e.stopPropagation()}>
+                <h3 className="text-lg font-bold text-slate-900 dark:text-white">{t('dashboard.saveListTitle')}</h3>
+                <input 
+                    type="text" 
+                    value={newListName}
+                    onChange={(e) => setNewListName(e.target.value)}
+                    placeholder={t('dashboard.listNamePlaceholder')}
+                    className="w-full p-3 bg-white dark:bg-slate-950 border border-slate-300 dark:border-slate-700 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:outline-none text-slate-900 dark:text-white"
+                    autoFocus
+                />
+                <div className="flex gap-3 mt-2">
+                    <button onClick={() => setShowSavePrompt(false)} className="flex-1 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 py-2.5 rounded-lg font-medium transition-colors">{t('common.cancel')}</button>
+                    <button onClick={handleSaveList} className="flex-1 bg-indigo-600 hover:bg-indigo-700 text-white font-medium py-2.5 rounded-lg shadow-sm transition-colors">{t('common.save')}</button>
+                </div>
+            </div>
+        </div>
+      )}
+
+      <ActivitySelectionModal 
+        isOpen={showModal}
+        onClose={() => setShowModal(false)}
+        onSelect={handleGenerationTypeSelect}
+        isTimed={isTimed}
+        setIsTimed={setIsTimed}
+      />
     </>
   );
 };

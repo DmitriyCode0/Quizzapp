@@ -1,78 +1,43 @@
-import React, { useState, useEffect, useCallback } from 'react';
+
+import React from 'react';
 import SpeakerIcon from './icons/SpeakerIcon';
+import SpinnerIcon from './icons/SpinnerIcon';
+import { useAudio } from '../hooks/useAudio';
 
 interface AudioButtonProps {
   textToSpeak: string | undefined | null;
   lang: 'en-US' | 'uk-UA';
 }
 
-// Keep track of the currently playing utterance globally to manage state
-let currentUtterance: SpeechSynthesisUtterance | null = null;
-let onEndCallback: (() => void) | null = null;
-
 const AudioButton: React.FC<AudioButtonProps> = ({ textToSpeak, lang }) => {
-  const [isPlaying, setIsPlaying] = useState(false);
+  const { speak, currentText, isPlaying, isLoading } = useAudio();
 
-  const handlePlaybackEnd = useCallback(() => {
-    setIsPlaying(false);
-    if (currentUtterance && onEndCallback === handlePlaybackEnd) {
-        currentUtterance = null;
-        onEndCallback = null;
-    }
-  }, []);
+  // Determine if THIS specific button is the one active
+  const isActive = (isPlaying || isLoading) && currentText === textToSpeak;
+  const showSpinner = isLoading && currentText === textToSpeak;
 
-  useEffect(() => {
-    // This effect ensures that if a global utterance finishes, the button state resets.
-    if (currentUtterance === null) {
-        setIsPlaying(false);
-    }
-  }, []);
-
-
-  const playAudio = (e: React.MouseEvent) => {
+  const handleClick = (e: React.MouseEvent) => {
     e.stopPropagation();
     e.preventDefault();
-
-    if (!textToSpeak || typeof window.speechSynthesis === 'undefined') {
-      return;
+    if (textToSpeak) {
+        speak(textToSpeak, lang);
     }
-
-    // If any sound is playing, stop it.
-    if (window.speechSynthesis.speaking) {
-        window.speechSynthesis.cancel();
-        if(onEndCallback) onEndCallback();
-    }
-    
-    // If the clicked sound was the one playing, this acts as a toggle-off.
-    if (isPlaying) {
-        return;
-    }
-
-    const utterance = new SpeechSynthesisUtterance(textToSpeak);
-    utterance.lang = lang;
-    
-    currentUtterance = utterance;
-    onEndCallback = handlePlaybackEnd;
-    
-    utterance.onstart = () => setIsPlaying(true);
-    utterance.onend = handlePlaybackEnd;
-    utterance.onerror = (event) => {
-        console.error("SpeechSynthesis Error:", event.error);
-        handlePlaybackEnd();
-    };
-
-    window.speechSynthesis.speak(utterance);
   };
 
   if (!textToSpeak) return null;
 
   return (
     <button
-      onClick={playAudio}
-      className={`p-2 rounded-full transition-colors duration-200 flex-shrink-0 ${isPlaying ? 'bg-indigo-500 text-white' : 'bg-slate-600 hover:bg-slate-500 text-slate-300'}`}
+      onClick={handleClick}
+      disabled={isLoading && !isActive} // Disable other buttons while one is loading
+      className={`p-2 rounded-full transition-all duration-200 flex-shrink-0 flex items-center justify-center w-9 h-9 ${
+          isActive 
+            ? 'bg-indigo-600 text-white shadow-md scale-110' 
+            : 'bg-slate-100 dark:bg-slate-700 text-slate-500 dark:text-slate-300 hover:bg-indigo-50 dark:hover:bg-indigo-900/30 hover:text-indigo-600 dark:hover:text-indigo-400 hover:shadow-sm'
+      } ${isLoading && !isActive ? 'opacity-50 cursor-not-allowed' : ''}`}
       aria-label={`Listen to: ${textToSpeak}`}
     >
-      <SpeakerIcon isPlaying={isPlaying} />
+      {showSpinner ? <SpinnerIcon className="w-4 h-4 text-white animate-spin" /> : <SpeakerIcon isPlaying={isActive && !showSpinner} />}
     </button>
   );
 };

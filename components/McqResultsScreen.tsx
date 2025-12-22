@@ -1,6 +1,7 @@
 
 import React from 'react';
 import { Question, UserAnswer } from '../types';
+import { useTranslation } from '../hooks/useTranslation';
 
 interface McqResultsScreenProps {
   userAnswers: UserAnswer[];
@@ -10,41 +11,48 @@ interface McqResultsScreenProps {
 }
 
 const McqResultsScreen: React.FC<McqResultsScreenProps> = ({ userAnswers, questions, onContinue, onRestart }) => {
+  const { t } = useTranslation();
   const score = userAnswers.filter(a => a.isCorrect).length;
   const total = questions.length;
   const percentage = total > 0 ? Math.round((score / total) * 100) : 0;
 
   const getFeedbackMessage = () => {
-    if (percentage === 100) return "Perfect Score! Ready for a new challenge?";
-    if (percentage >= 80) return "Excellent work! Let's test your skills further.";
-    if (percentage >= 60) return "Good job! Try the next level to solidify your knowledge.";
-    return "Nice try! The next level is a great way to practice the words you missed.";
+    if (percentage === 100) return t('common.correct');
+    if (percentage >= 80) return "Excellent work!";
+    if (percentage >= 60) return "Good job!";
+    return t('common.notQuite');
   };
 
   return (
-    <div className="bg-slate-800 p-8 rounded-lg shadow-2xl w-full max-w-2xl animate-fade-in flex flex-col items-center gap-6">
-      <h1 className="text-4xl font-bold text-indigo-400">Level 1 Complete!</h1>
+    <div className="bg-white p-8 rounded-2xl shadow-xl border border-slate-200 w-full max-w-2xl animate-fade-in flex flex-col items-center gap-6 mx-auto">
+      <div className="p-3 bg-indigo-50 rounded-full mb-2">
+        <span className="text-4xl">🎉</span>
+      </div>
       
-      <div className="text-center">
-        <p className="text-slate-300 text-lg">Your Multiple Choice Score</p>
-        <p className="text-6xl font-bold my-2">{score} / {total}</p>
-        <p className="text-2xl text-indigo-400 font-semibold">{percentage}%</p>
+      <h1 className="text-3xl font-bold text-slate-900 tracking-tight">Level 1 Complete!</h1>
+      
+      <div className="text-center space-y-2">
+        <p className="text-slate-500 font-medium uppercase text-xs tracking-wider">Your Score</p>
+        <div className="flex flex-col items-center">
+            <span className="text-6xl font-extrabold text-slate-900">{score} <span className="text-3xl text-slate-300 font-normal">/ {total}</span></span>
+            <span className="text-indigo-600 font-bold text-xl bg-indigo-50 px-3 py-1 rounded-lg mt-2">{percentage}%</span>
+        </div>
       </div>
 
-      <p className="text-slate-300 text-lg text-center">{getFeedbackMessage()}</p>
+      <p className="text-slate-600 text-lg text-center font-medium">{getFeedbackMessage()}</p>
       
-      <div className="flex flex-col sm:flex-row gap-4 w-full max-w-sm mt-4">
+      <div className="flex flex-col sm:flex-row gap-4 w-full max-w-md mt-4">
         <button
             onClick={onContinue}
-            className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3 px-4 rounded-lg transition-transform transform hover:scale-105"
+            className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3.5 px-4 rounded-xl shadow-md transition-transform transform hover:scale-[1.02]"
         >
-            Continue to Level 2 (Gap-fill)
+            Continue to Level 2
         </button>
         <button
             onClick={onRestart}
-            className="w-full bg-slate-600 hover:bg-slate-700 text-white font-bold py-3 px-4 rounded-lg transition-transform transform hover:scale-105"
+            className="w-full bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 font-bold py-3.5 px-4 rounded-xl shadow-sm transition-colors"
         >
-            Start a New Quiz
+            {t('common.createSomethingNew')}
         </button>
       </div>
     </div>

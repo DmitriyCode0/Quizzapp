@@ -1,10 +1,12 @@
+
 import React, { useState, useEffect, useRef } from 'react';
-import { TranslationQuestion, TranslationUserAnswer, FeedbackItem, CEFRLevel, Language } from '../types';
+import { TranslationQuestion, TranslationUserAnswer, FeedbackItem, CEFRLevel, Language, TeacherPersona } from '../types';
 import { evaluateTranslationAnswer } from '../services/geminiService';
-import PauseIcon from './icons/PauseIcon';
-import PlayIcon from './icons/PlayIcon';
 import AudioButton from './AudioButton';
 import { useTranslation } from '../hooks/useTranslation';
+import { useQuizLogic } from '../hooks/useQuizLogic';
+import QuizLayout from './QuizLayout';
+import DiffViewer from './DiffViewer';
 
 interface TranslationQuizScreenProps {
   questions: TranslationQuestion[];
@@ -12,53 +14,53 @@ interface TranslationQuizScreenProps {
   isTimedMode: boolean;
   cefrLevel: CEFRLevel;
   language: Language;
+  onBack: () => void;
+  selectedGrammarTopics?: string[];
+  teacherPersona?: TeacherPersona;
 }
 
-const TranslationQuizScreen: React.FC<TranslationQuizScreenProps> = ({ questions, onComplete, isTimedMode, cefrLevel, language }) => {
-  const [currentIndex, setCurrentIndex] = useState(0);
+const TranslationQuizScreen: React.FC<TranslationQuizScreenProps> = ({ 
+    questions, 
+    onComplete, 
+    isTimedMode, 
+    cefrLevel, 
+    language, 
+    onBack,
+    selectedGrammarTopics = [],
+    teacherPersona = 'standard' as TeacherPersona
+}) => {
   const [inputValue, setInputValue] = useState('');
-  const [isAnswered, setIsAnswered] = useState(false);
   const [isEvaluating, setIsEvaluating] = useState(false);
   const [evaluation, setEvaluation] = useState<{ score: number, feedback: FeedbackItem[] } | null>(null);
-  const [userAnswers, setUserAnswers] = useState<TranslationUserAnswer[]>([]);
   const [isSkipped, setIsSkipped] = useState(false);
-
-  const [timeLeft, setTimeLeft] = useState(30);
-  const [isPaused, setIsPaused] = useState(false);
+  
+  const {
+    currentIndex,
+    timeLeft,
+    isPaused,
+    setIsPaused,
+    isAnswered,
+    handleNext,
+    addAnswer
+  } = useQuizLogic<TranslationUserAnswer>({
+    totalQuestions: questions.length,
+    isTimedMode,
+    onComplete,
+    onTimeUp: () => handleCheckAnswer(),
+    externalStopTimer: isEvaluating // Pause timer while AI evaluates
+  });
   
   const formRef = useRef<HTMLFormElement>(null);
   const { t } = useTranslation();
 
   const currentQuestion = questions[currentIndex];
 
-  // Timer countdown effect
+  // Reset local state
   useEffect(() => {
-    if (!isTimedMode || isPaused || isAnswered || isEvaluating) return;
-
-    if (timeLeft <= 0) {
-      handleCheckAnswer();
-      return;
-    }
-
-    const timerId = setInterval(() => {
-      setTimeLeft(prev => prev - 1);
-    }, 1000);
-
-    return () => clearInterval(timerId);
-  }, [timeLeft, isTimedMode, isPaused, isAnswered, isEvaluating]);
-
-  // Question change effect
-  useEffect(() => {
-    if (typeof window.speechSynthesis !== 'undefined') {
-        window.speechSynthesis.cancel();
-    }
     setInputValue('');
-    setIsAnswered(false);
     setEvaluation(null);
     setIsEvaluating(false);
     setIsSkipped(false);
-    setTimeLeft(30);
-    setIsPaused(false);
     document.getElementById('translation-input')?.focus();
   }, [currentIndex]);
 
@@ -77,19 +79,20 @@ const TranslationQuizScreen: React.FC<TranslationQuizScreenProps> = ({ questions
         currentQuestion.ukrainianSentence,
         currentQuestion.originalTerm,
         cefrLevel,
-        language
+        language,
+        selectedGrammarTopics,
+        teacherPersona
     );
     
     setIsEvaluating(false);
-    setIsAnswered(true);
     setEvaluation(evalResult);
-    setUserAnswers(prev => [...prev, {
+    addAnswer({
       questionId: currentQuestion.id,
       userAnswer,
       correctAnswer: currentQuestion.englishAnswer,
       score: evalResult.score,
       feedback: evalResult.feedback,
-    }]);
+    });
   };
   
   const handleSkip = () => {
@@ -99,25 +102,14 @@ const TranslationQuizScreen: React.FC<TranslationQuizScreenProps> = ({ questions
         window.speechSynthesis.cancel();
     }
     setIsSkipped(true);
-    const skippedAnswer = {
+    setEvaluation({ score: 0, feedback: [] });
+    addAnswer({
       questionId: currentQuestion.id,
       userAnswer: 'Skipped',
       correctAnswer: currentQuestion.englishAnswer,
       score: 0,
       feedback: [],
-    };
-
-    setIsAnswered(true);
-    setEvaluation({ score: 0, feedback: [] });
-    setUserAnswers(prev => [...prev, skippedAnswer]);
-  };
-
-  const handleNext = () => {
-    if (currentIndex < questions.length - 1) {
-      setCurrentIndex(prev => prev + 1);
-    } else {
-      onComplete(userAnswers);
-    }
+    });
   };
 
   const formSubmitHandler = (e: React.FormEvent) => {
@@ -137,103 +129,112 @@ const TranslationQuizScreen: React.FC<TranslationQuizScreenProps> = ({ questions
   };
   
   const getInputBorderColor = () => {
-      if (!isAnswered || !evaluation) return 'border-slate-600 focus:border-indigo-500 focus:ring-indigo-500';
-      if (evaluation.score >= 90) return 'border-green-500 ring-green-500';
-      if (evaluation.score >= 70) return 'border-yellow-500 ring-yellow-500';
-      return 'border-red-500 ring-red-500';
+      if (!isAnswered || !evaluation) return 'border-slate-200 dark:border-slate-700 focus:border-indigo-500 focus:ring-indigo-100 dark:focus:ring-indigo-900/30';
+      if (teacherPersona === 'learning') return 'border-indigo-500 ring-1 ring-indigo-500 bg-indigo-50 dark:bg-indigo-900/20';
+      if (evaluation.score >= 90) return 'border-emerald-500 ring-1 ring-emerald-500 bg-emerald-50 dark:bg-emerald-900/20';
+      if (evaluation.score >= 70) return 'border-amber-500 ring-1 ring-amber-500 bg-amber-50 dark:bg-amber-900/20';
+      return 'border-rose-500 ring-1 ring-rose-500 bg-rose-50 dark:bg-rose-900/20';
   }
 
   return (
-    <div className="bg-slate-800 p-8 rounded-lg shadow-2xl w-full max-w-2xl animate-fade-in relative">
-        {isTimedMode && (
-            <div className="absolute top-4 right-4 flex items-center gap-4 z-20">
-                <div className={`text-xl font-bold px-4 py-2 rounded-lg ${timeLeft <= 5 ? 'bg-red-600 animate-pulse' : 'bg-slate-700'}`}>
-                    {timeLeft}
-                </div>
-                <button 
-                    onClick={() => setIsPaused(!isPaused)} 
-                    className="bg-slate-600 hover:bg-slate-500 p-3 rounded-full text-white transition-colors"
-                    aria-label={isPaused ? t('common.resume') : t('common.paused')}
-                >
-                    {isPaused ? <PlayIcon /> : <PauseIcon />}
-                </button>
-            </div>
-        )}
-
-        {isPaused && isTimedMode && (
-            <div className="absolute inset-0 bg-black bg-opacity-80 flex flex-col items-center justify-center z-10 rounded-lg">
-                <h2 className="text-4xl font-bold mb-6 text-slate-100">{t('common.paused')}</h2>
-                <button onClick={() => setIsPaused(false)} className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3 px-6 rounded-lg text-lg">
-                    {t('common.resume')}
-                </button>
-            </div>
-        )}
-
-        <div className={isPaused ? 'blur-sm' : ''}>
-            <div className="mb-6">
-                <p className="text-indigo-400 font-semibold">{t('translationQuizScreen.translateQuestion_x_of_y', { current: currentIndex + 1, total: questions.length })}</p>
-                <div className="w-full bg-slate-700 rounded-full h-2.5 mt-2">
-                    <div className="bg-indigo-600 h-2.5 rounded-full" style={{ width: `${((currentIndex + 1) / questions.length) * 100}%` }}></div>
-                </div>
-            </div>
-
+    <QuizLayout
+        title={t('translationQuizScreen.translateQuestion_x_of_y', { current: currentIndex + 1, total: questions.length })}
+        progress={((currentIndex + 1) / questions.length) * 100}
+        isTimedMode={isTimedMode}
+        timeLeft={timeLeft}
+        isPaused={isPaused}
+        onPauseToggle={() => setIsPaused(!isPaused)}
+        onBack={onBack}
+    >
             <form ref={formRef} onSubmit={formSubmitHandler} className="flex flex-col items-center">
+                {selectedGrammarTopics.length > 0 && (
+                    <div className="w-full mb-6 flex flex-wrap gap-2 justify-center bg-slate-50 dark:bg-slate-800 p-3 rounded-xl border border-slate-100 dark:border-slate-700">
+                        <span className="text-[10px] text-slate-400 dark:text-slate-500 font-bold uppercase tracking-wider self-center">{t('common.grammarFocus')}:</span>
+                        {selectedGrammarTopics.map(topic => (
+                            <span key={topic} className="text-[10px] font-bold bg-white dark:bg-slate-700 text-indigo-600 dark:text-indigo-400 px-2 py-1 rounded border border-indigo-100 dark:border-slate-600 shadow-sm">
+                                {topic}
+                            </span>
+                        ))}
+                    </div>
+                )}
+                
                 <div className="w-full text-center mb-6">
-                    <label htmlFor="translation-input" className="block text-lg font-medium text-slate-300 mb-2">{t('translationQuizScreen.translateLabel')}</label>
-                    <div className="flex items-center gap-3 p-4 bg-slate-900 rounded-md">
-                        <p className="text-2xl font-semibold text-slate-100 min-h-[5rem] flex-grow text-center">
+                    <label htmlFor="translation-input" className="block text-sm font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-3">{t('translationQuizScreen.translateLabel')}</label>
+                    <div className="flex flex-col items-center justify-center gap-3 p-6 bg-slate-50 dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm min-h-[8rem]">
+                        <p className="text-2xl font-serif font-medium text-slate-900 dark:text-slate-100 text-center leading-relaxed">
                             {currentQuestion.ukrainianSentence}
                         </p>
                         <AudioButton textToSpeak={currentQuestion.ukrainianSentence} lang="uk-UA" />
                     </div>
                 </div>
                 
-                <textarea
-                    id="translation-input"
-                    value={inputValue}
-                    onChange={(e) => setInputValue(e.target.value)}
-                    onKeyDown={handleTextareaKeyDown}
-                    disabled={isAnswered || isEvaluating}
-                    placeholder={t('translationQuizScreen.textareaPlaceholder')}
-                    className={`w-full h-32 p-4 bg-slate-700 border rounded-lg focus:ring-2 focus:outline-none transition-colors duration-300 resize-none mb-6 ${getInputBorderColor()}`}
-                    autoFocus
-                />
+                {!isAnswered ? (
+                    <textarea
+                        id="translation-input"
+                        value={inputValue}
+                        onChange={(e) => setInputValue(e.target.value)}
+                        onKeyDown={handleTextareaKeyDown}
+                        disabled={isEvaluating}
+                        placeholder={t('translationQuizScreen.textareaPlaceholder')}
+                        className={`w-full h-32 p-4 bg-white dark:bg-slate-900 border rounded-xl shadow-sm focus:ring-4 focus:outline-none transition-all duration-200 resize-none mb-6 text-lg text-slate-800 dark:text-slate-200 placeholder-slate-400 dark:placeholder-slate-500 ${getInputBorderColor()}`}
+                        autoFocus
+                    />
+                ) : (
+                    <div className={`w-full min-h-[8rem] p-4 border rounded-xl shadow-sm mb-6 text-lg leading-relaxed ${getInputBorderColor()}`}>
+                        {evaluation ? (
+                            <DiffViewer 
+                                userAnswer={inputValue} 
+                                correctAnswer={currentQuestion.englishAnswer} 
+                                isCorrectOverride={evaluation.score >= 100}
+                                mode="words"
+                                hideMissing={true}
+                            />
+                        ) : (
+                            <span className="text-slate-800 dark:text-slate-200">{inputValue}</span>
+                        )}
+                    </div>
+                )}
 
                 {isEvaluating && (
-                    <div className="flex items-center gap-3 text-lg text-slate-300 mb-6">
-                        <div className="w-6 h-6 border-2 border-t-indigo-400 border-slate-600 rounded-full animate-spin"></div>
+                    <div className="flex items-center gap-3 text-sm font-medium text-indigo-600 dark:text-indigo-400 mb-6 bg-indigo-50 dark:bg-indigo-900/30 px-4 py-2 rounded-full animate-pulse">
+                        <div className="w-4 h-4 border-2 border-t-indigo-600 dark:border-t-indigo-400 border-indigo-200 dark:border-indigo-800 rounded-full animate-spin"></div>
                         <span>{t('translationQuizScreen.evaluating')}</span>
                     </div>
                 )}
 
                 {isAnswered && evaluation && (
-                    <div className="text-center mb-6 animate-fade-in w-full bg-slate-900/50 p-4 rounded-lg">
-                        {timeLeft <= 0 && !isEvaluating && <p className="text-red-400 font-bold mb-2">{t('common.timesUp')}</p>}
+                    <div className="text-center mb-8 animate-fade-in w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 p-6 rounded-2xl shadow-sm">
+                        {timeLeft <= 0 && !isEvaluating && <p className="text-rose-600 dark:text-rose-400 font-bold mb-2">{t('common.timesUp')}</p>}
                         
                         {isSkipped ? (
-                             <p className="text-2xl font-bold text-yellow-400">{t('translationQuizScreen.questionSkipped')}</p>
+                             <p className="text-xl font-bold text-amber-500 dark:text-amber-400">{t('translationQuizScreen.questionSkipped')}</p>
                         ) : (
-                            <p className="text-2xl font-bold">
-                                {t('translationQuizScreen.score')} <span className={evaluation.score >= 90 ? 'text-green-400' : evaluation.score >= 70 ? 'text-yellow-400' : 'text-red-400'}>{evaluation.score}%</span>
-                            </p>
+                            teacherPersona !== 'learning' && (
+                                <p className="text-2xl font-bold text-slate-900 dark:text-white mb-4">
+                                    {t('translationQuizScreen.score')} <span className={evaluation.score >= 90 ? 'text-emerald-600 dark:text-emerald-400' : evaluation.score >= 70 ? 'text-amber-500 dark:text-amber-400' : 'text-rose-600 dark:text-rose-400'}>{evaluation.score}%</span>
+                                </p>
+                            )
                         )}
 
                         {!isSkipped && evaluation.feedback.length > 0 && (
-                            <div className="mt-3 text-left">
-                                <p className="font-semibold text-indigo-300">{t('common.feedback')}</p>
-                                <div className="space-y-1 mt-1">
+                            <div className="mt-4 text-left bg-slate-50 dark:bg-slate-800 p-4 rounded-xl border border-slate-100 dark:border-slate-700">
+                                <p className="font-bold text-slate-700 dark:text-slate-300 text-xs uppercase tracking-wide mb-2">{t('common.feedback')}</p>
+                                <div className="space-y-2">
                                     {evaluation.feedback.map((item, index) => (
-                                        <p key={index} className="text-slate-200">- <span className="font-semibold">{item.topic}:</span> {item.message}</p>
+                                        <div key={index} className="flex gap-2 text-sm">
+                                            <span className={`font-bold ${item.type === 'bonus' ? 'text-amber-600 dark:text-amber-400' : 'text-slate-800 dark:text-slate-200'}`}>{item.topic}:</span>
+                                            <span className="text-slate-600 dark:text-slate-400">{item.message}</span>
+                                        </div>
                                     ))}
                                 </div>
                             </div>
                         )}
                         
-                        {(evaluation.score < 100 || isSkipped) && (
-                            <div className="mt-3 text-left border-t border-slate-700 pt-3">
-                                <p className="text-slate-300 text-md">{t('translationQuizScreen.suggestedAnswer')}</p>
-                                <div className="flex items-center gap-3">
-                                    <p className="font-semibold text-green-400 flex-grow">{currentQuestion.englishAnswer}</p>
+                        {(evaluation.score < 100 || isSkipped || teacherPersona === 'learning') && (
+                            <div className="mt-4 text-left border-t border-slate-100 dark:border-slate-700 pt-4">
+                                <p className="text-slate-400 dark:text-slate-500 text-xs font-bold uppercase tracking-wide mb-2">{t('translationQuizScreen.suggestedAnswer')}</p>
+                                <div className="flex items-center gap-3 bg-emerald-50 dark:bg-emerald-900/20 border border-emerald-100 dark:border-emerald-800 p-3 rounded-lg">
+                                    <p className="font-medium text-emerald-800 dark:text-emerald-300 flex-grow">{currentQuestion.englishAnswer}</p>
                                     <AudioButton textToSpeak={currentQuestion.englishAnswer} lang="en-US" />
                                 </div>
                             </div>
@@ -241,11 +242,11 @@ const TranslationQuizScreen: React.FC<TranslationQuizScreenProps> = ({ questions
                     </div>
                 )}
 
-                <div className="w-full max-w-sm flex flex-col items-center gap-3">
+                <div className="w-full max-w-sm flex flex-col items-center gap-4">
                     <button
                         type="submit"
                         disabled={(!isAnswered && !inputValue.trim()) || isEvaluating}
-                        className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3 px-4 rounded-lg transition-transform transform hover:scale-105 disabled:bg-slate-600 disabled:cursor-not-allowed"
+                        className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-4 px-6 rounded-xl shadow-lg transition-transform transform hover:-translate-y-0.5 disabled:bg-slate-300 dark:disabled:bg-slate-700 disabled:cursor-not-allowed disabled:shadow-none"
                     >
                         {isAnswered ? (currentIndex < questions.length - 1 ? t('common.nextQuestion') : t('common.finishQuiz')) : (isEvaluating ? t('translationQuizScreen.evaluating') : t('common.checkAnswer'))}
                     </button>
@@ -253,15 +254,14 @@ const TranslationQuizScreen: React.FC<TranslationQuizScreenProps> = ({ questions
                         <button
                             type="button"
                             onClick={handleSkip}
-                            className="bg-transparent hover:bg-slate-700 text-slate-400 font-semibold py-2 px-4 border border-slate-600 rounded-lg transition"
+                            className="text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:hover:text-slate-300 font-medium text-sm transition-colors hover:underline"
                         >
                             {t('common.skipQuestion')}
                         </button>
                     )}
                 </div>
             </form>
-        </div>
-    </div>
+    </QuizLayout>
   );
 };
 

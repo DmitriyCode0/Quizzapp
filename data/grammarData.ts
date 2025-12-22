@@ -1,83 +1,214 @@
+
 import { CEFRLevel } from '../types';
 
 export const grammarPools: Record<Exclude<CEFRLevel, 'A1 ukr'>, string[]> = {
     'A1': [
-        "Present simple forms of ‘to be’: am/is/are", "Present simple: I do, I don’t, Do I?", "Present continuous: I’m doing, I’m not doing, Are you doing?", "Present simple or present continuous?", "Have got",
-        "Was/were: Past simple of ‘be’", "Past simple: Regular/irregular verbs", "Past simple: Negatives and questions",
-        "‘Will’ and ‘shall’: Future", "Be going to: Plans and predictions",
-        "Can, can’t: ability, possibility, permission", "The imperative: Sit down! Don’t talk!", "Would you like…? I’d like…",
-        "Verbs + to + infinitive and verbs + -ing",
-        "A/an, plurals: Singular and plural forms", "A/an, the, no article: The use of articles in English", "This, that, these, those", "Possessive adjectives and subject pronouns (I/my, you/your, etc.)", "Object pronouns vs subject pronouns: Me or I, she or her?", "A, some, any: Countable and uncountable nouns", "Much, many, a lot of, a little, a few", "Whose, possessive ‘s: Whose is this? It’s Mike’s",
-        "There is, there are / There was, there were", "There or it", "The difference between ‘this’ and ‘it’",
-        "Adjectives: old, interesting, expensive, etc.", "Adverbs of manner (slowly) or adjectives (slow)?", "Comparative adjectives: Older than, more important than, etc.", "Superlative adjectives: The oldest, the most important, etc.",
-        "Conjunctions: And, but, or, so, because",
-        "At, in, on: Prepositions of time", "At, in, on: Prepositions of place", "Next to, under, between, in front of, behind, over, etc.",
-        "Questions: Word order and question words",
-        "Adverbs of frequency with present simple", "Basic word order in English."
+        // Present
+        "Verb 'To Be'",
+        "Present Simple",
+        "Present Continuous",
+        "Have got",
+        
+        // Past & Future
+        "Was / Were",
+        "Past Simple",
+        "Future: Going to",
+        "Future: Will",
+        
+        // Modals & Verbs
+        "Can / Can't",
+        "Imperatives",
+        "Would like",
+        "Verb Patterns (Inf/Ger)",
+        
+        // Nouns & Pronouns
+        "Articles & Plurals",
+        "Pronouns",
+        "Object Pronouns",
+        "Possessives",
+        "This / That / These / Those",
+        "Quantifiers",
+        "There is / There are",
+        
+        // Adjectives & Adverbs
+        "Adjectives",
+        "Comparatives",
+        "Superlatives",
+        "Adverbs",
+        
+        // Prepositions & Structure
+        "Prepositions: Time",
+        "Prepositions: Place",
+        "Prepositions: Position",
+        "Conjunctions",
+        "Question Words",
+        "Word Order"
     ],
     'A2': [
-        "Present simple vs present continuous", "Present perfect: Form and use", "Present perfect or past simple?",
-        "Past simple: Form and use", "Past continuous and past simple", "Past perfect",
-        "Will vs be going to: Future", "Present continuous for future arrangements",
-        "Review of all verb tenses A2",
-        "Have to, don’t have to, must, mustn’t", "Should, shouldn’t", "Might, might not: Possibility", "May and might: What’s the difference?", "Used to, didn’t use to: Past habits and states",
-        "The different uses of the verb ‘get’", "‘Do’ vs ‘Make’: What’s the difference?", "Verbs with two objects", "Stative vs dynamic verbs", "Phrasal verbs: Transitive and intransitive",
-        "First conditional and future time clauses", "Second conditional",
-        "Present and past simple passive: be + past participle",
-        "Reported speech / Indirect speech",
-        "Expressing purpose with ‘to’ and ‘for’", "Infinitives and gerunds: Verb patterns",
-        "Subject pronouns, object pronouns, possessive pronouns", "Something, anything, nothing, etc.", "Much, many, little, few, some, any: Quantifiers", "Too, too much, too many, enough", "Most, most of, the most",
-        "Defining relative clauses: Who, which, that, where",
-        "So, neither: so am I, neither do I, etc.",
-        "Comparative and superlative adjectives and adverbs", "No longer, any longer, anymore",
-        "However, although, because, so, and time connectors",
-        "Prepositions of movement: Along, across, over, etc.", "On time vs In time, At the end vs In the end.",
-        "Asking questions in English: Question forms", "Subject questions, questions with preposition"
+        // Tenses
+        "Present Simple vs Continuous",
+        "Past Simple vs Continuous",
+        "Present Perfect Basics",
+        "Present Perfect vs Past Simple",
+        "Past Perfect",
+        
+        // Future
+        "Future: Will vs Going to",
+        "Future: Present Continuous",
+        
+        // Modals
+        "Must / Have to",
+        "Should / Shouldn't",
+        "May / Might (Possibility)",
+        "Used to (Past Habits)",
+        
+        // Conditionals
+        "First Conditional",
+        "Second Conditional",
+        
+        // Verbs
+        "Passive Voice (Simple)",
+        "Gerunds & Infinitives",
+        "Stative vs Dynamic Verbs",
+        "Phrasal Verbs Basics",
+        "Do vs Make",
+        "Uses of 'Get'",
+        
+        // Nouns etc
+        "Indefinite Pronouns",
+        "Quantifiers (Much, Many, Some, Any)",
+        "Too / Enough",
+        "Possessive Pronouns",
+        
+        // Adjectives
+        "Comparatives & Superlatives",
+        "So / Neither (Agreement)",
+        
+        // Sentence
+        "Relative Clauses (Defining)",
+        "Connectors (However, Although, Because)",
+        "Purpose (to / for)",
+        "Subject Questions",
+        "Prepositions of Movement"
     ],
     'B1': [
-        "Past simple or present perfect?", "Present perfect simple and present perfect continuous",
-        "Past simple, past continuous, past perfect",
-        "Future forms: Will, be going to, present continuous",
-        "Have to, must, should: Obligation, prohibition, advice", "Can, could, be able to: Ability and possibility", "Modal verbs of deduction: Must, might, could, can’t", "Usually, used to, be used to, get used to", "Had better… it’s time", "Would rather & Would sooner", "B1 Phrasal verbs",
-        "First conditional, future time clauses", "Second conditional: Unreal situations", "Third conditional: Past unreal situations",
-        "Passive verb forms", "Active and passive voice",
-        "Indirect speech / Reported speech",
-        "Gerund or infinitive: Do, to do, doing",
-        "A(n), the, no article", "Reflexive pronouns: Myself, yourself", "All, both, either, neither: Quantifiers", "Any, no, none: Quantifiers", "Another, other, others, the other, the others",
-        "Defining and non-defining relative clauses",
-        "Question tags: Aren’t you? don’t you?",
-        "Comparative and superlative adjectives and adverbs", "-Ed/-ing adjectives: Adjectives from verbs", "So, such, such a, so much, so many", "Compound adjectives with numbers: ‘A two-day trip’",
-        "Clauses of contrast, purpose and reason",
-        "Verb + preposition", "Adjective + preposition", "During, for, while", "For, since, from: What’s the difference?"
+        // Tenses
+        "Past Simple vs Present Perfect",
+        "Present Perfect Continuous",
+        "Past Perfect",
+
+        // Future
+        "Future Forms Review",
+
+        // Modals & Habits
+        "Obligation & Advice (Must, Should, Ought to)",
+        "Ability (Can, Could, Be able to)",
+        "Deduction (Must, Might, Can't)",
+        "Had better / Would rather",
+        "Used to / Be used to / Get used to",
+
+        // Conditionals
+        "Zero & First Conditional",
+        "Second Conditional",
+        "Third Conditional",
+
+        // Passive & Reported
+        "Passive Voice (Intermediate)",
+        "Reported Speech (Statements)",
+        "Reported Speech (Questions)",
+
+        // Verbs
+        "Gerund vs Infinitive",
+        "Phrasal Verbs (Common)",
+        "Verb + Preposition",
+
+        // Nouns etc
+        "Articles (Definite, Indefinite, Zero)",
+        "Quantifiers (All, Both, Either, Neither)",
+        "Reflexive Pronouns",
+
+        // Adj/Adv
+        "Adjectives ending in -ed / -ing",
+        "So vs Such",
+        "Comparison (Advanced)",
+
+        // Structure
+        "Relative Clauses (Defining vs Non-defining)",
+        "Question Tags",
+        "Connectors of Purpose & Reason"
     ],
     'B2': [
-        "Narrative tenses: All past tenses",
-        "Future continuous and future perfect",
-        "Needn’t, don’t need to, didn’t need to, needn’t have", "Past modal verbs of deduction", "Likely, unlikely, bound, definitely, probably: Probability", "Would and used to: Past habits", "Verbs of the senses: Look, sound, feel, etc.",
-        "Zero and first conditional and future time clauses", "Second and third conditionals: Unreal conditionals", "Wishes and regrets: I wish / if only",
-        "The passive voice: All tenses", "The passive with reporting verbs: It is said that…", "Have something done",
-        "Gerund or infinitive: Verb patterns", "Would rather, would prefer: Expressing preference", "Reporting verbs: Admit doing, refuse to do, etc.",
-        "Quantifiers: All, most, both, either, neither, any, no, none",
-        "Whatever, whenever, wherever, whoever, however",
-        "The … the … comparatives", "Participles as adjectives: -ed / -ing adjectives", "Adjective order",
-        "Already, still, yet: What’s the difference?", "Pretty, rather, quite, fairly",
-        "Clauses of contrast and purpose",
-        "Indirect questions", "Position of adverbs and adverb phrases"
+        // Complex Tenses
+        "Narrative Tenses",
+        "Future Continuous",
+        "Future Perfect",
+        
+        // Past Modals
+        "Past Modals (Should have / Could have)",
+        "Deduction (Must have / Can't have)",
+        "Habits (Will / Would for habits)",
+        
+        // Conditionals & Wishes
+        "Third Conditional (Review)",
+        "Mixed Conditionals",
+        "Wishes & Regrets (I wish / If only)",
+        
+        // Passive & Causative
+        "Passive (Advanced Structures)",
+        "Causative (Have something done)",
+        "Reporting Verbs (Passive)",
+        
+        // Verbs & Patterns
+        "Gerund vs Infinitive (Meaning Change)",
+        "Verbs of the Senses",
+        "Participle Clauses (Reduced)",
+        
+        // Adjectives & Quantifiers
+        "Adjective Order",
+        "Gradable vs Non-gradable Adjectives",
+        "Quantifiers (Advanced)",
+        
+        // Sentence Structure
+        "Relative Clauses (Non-defining)",
+        "Connectors of Contrast (Despite / In spite of)",
+        "Inversion (Introduction)",
+        "Cleft Sentences (What I need is...)"
     ],
     'C1': [
-        "Future in the past",
-        "Speculation and deduction: Modal verbs and expressions",
-        "All conditionals: mixed conditionals, alternatives to if, inversion", "Mixed conditionals", "Wish, rather, if only, it’s time: unreal uses of past tenses", "Unless, even if, provided, as long as, etc.",
-        "Distancing: Expressions and passive of reporting verbs", "Passive verbs with two objects",
-        "Verb + object + infinitive/gerund: Verb patterns", "Gerunds and infinitives: Complex forms",
-        "Reflexive and reciprocal pronouns", "Compound nouns and possessive forms", "Possessive ’s with time expressions: Two hours’ walk",
-        "Relative clauses: Defining and non-defining",
-        "‘There’ and ‘it’: Preparatory subjects",
-        "Ellipsis and substitution",
-        "Modifying comparatives", "Compound adjectives in English", "Inversion with negative adverbials",
-        "Noun + Preposition collocations",
-        "Clauses of contrast, purpose, reason and result", "Discourse markers: Linking words", "Participle clauses",
-        "Cleft sentences: Adding emphasis"
+        // Future & Tenses
+        "Future in the Past",
+        "Wishes & Unreal Past (It's time / I'd rather)",
+
+        // Modals
+        "Speculation & Deduction (Advanced)",
+
+        // Conditionals
+        "Mixed Conditionals",
+        "Inverted Conditionals (Should / Had / Were)",
+        "Alternatives to 'If' (Provided / Unless)",
+
+        // Passive & Causative
+        "Passive with Reporting Verbs (It is said that...)",
+        "Passive with Two Objects",
+
+        // Verbs & Patterns
+        "Complex Gerunds & Infinitives",
+        "Subjunctive Mood",
+
+        // Nouns & Pronouns
+        "Compound Nouns & Possessives",
+        "Reflexive & Reciprocal Pronouns",
+
+        // Adjectives & Adverbs
+        "Compound Adjectives",
+        "Modifying Comparatives (Far / Way / Slightly)",
+
+        // Sentence Structure & Style
+        "Inversion (Negative Adverbials)",
+        "Cleft Sentences (It was... / What I need...)",
+        "Participle Clauses",
+        "Ellipsis & Substitution",
+        "Discourse Markers"
     ],
     'C2': [
         "Advanced conditional forms (e.g., with inversion without 'if')",

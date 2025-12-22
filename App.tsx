@@ -1,365 +1,75 @@
-import React, { useState, useCallback } from 'react';
-import { AppState, Question, UserAnswer, QuizTerm, GapFillQuestion, GapFillUserAnswer, GenerationType, CEFRLevel, TranslationQuestion, TranslationUserAnswer, MatchingUserResult, TextTranslationQuestion, TextTranslationUserAnswer, VocabularyChallenge, GrammarChallenge } from './types';
-import InputScreen from './components/InputScreen';
-import LoadingScreen from './components/LoadingScreen';
-import QuizScreen from './components/QuizScreen';
-import GapFillQuizScreen from './components/GapFillQuizScreen';
-import TranslationQuizScreen from './components/TranslationQuizScreen';
-import ResultsScreen from './components/ResultsScreen';
-import DiscussionScreen from './components/DiscussionScreen';
-import TranslationListScreen from './components/TranslationListScreen';
-import MatchingScreen from './components/MatchingScreen';
-import TextTranslationScreen from './components/TextTranslationScreen';
-import FlashcardsScreen from './components/FlashcardsScreen';
+
+import React, { useState } from 'react';
+import { Routes, Route } from 'react-router-dom';
 import InfoModal from './components/InfoModal';
+import HelpModal from './components/HelpModal';
+import SettingsModal from './components/SettingsModal';
 import LanguageToggle from './components/LanguageToggle';
-import { generateMcqQuiz, generateGapFillQuiz, generateDiscussionPrompts, generateTranslationQuiz, generateTranslationList, generateTextTranslationActivity } from './services/geminiService';
+import ThemeToggle from './components/ThemeToggle';
+import MobileHeader from './components/MobileHeader';
+import HomeScreen from './components/HomeScreen';
+import DashboardScreen from './components/DashboardScreen';
+import GrammarLibraryScreen from './components/GrammarLibraryScreen';
+import GrammarTopicScreen from './components/GrammarTopicScreen';
+import SettingsIcon from './components/icons/SettingsIcon';
 import { useTranslation } from './hooks/useTranslation';
+import { APP_VERSION } from './constants';
 
 function App() {
-  const [appState, setAppState] = useState<AppState>('input');
-  
-  const [quizTerms, setQuizTerms] = useState<QuizTerm[]>([]);
-  const [isTimedMode, setIsTimedMode] = useState(false);
-  const [currentCefrLevel, setCurrentCefrLevel] = useState<CEFRLevel>('B1');
-  const [vocabularyChallenge, setVocabularyChallenge] = useState<VocabularyChallenge>('Standard');
-  const [grammarChallenge, setGrammarChallenge] = useState<GrammarChallenge>('Standard');
-
-
-  // MCQ State
-  const [questions, setQuestions] = useState<Question[]>([]);
-  const [userAnswers, setUserAnswers] = useState<UserAnswer[]>([]);
-  
-  // Gap-fill State
-  const [gapFillQuestions, setGapFillQuestions] = useState<GapFillQuestion[]>([]);
-  const [gapFillUserAnswers, setGapFillUserAnswers] = useState<GapFillUserAnswer[]>([]);
-
-  // Translation State
-  const [translationQuestions, setTranslationQuestions] = useState<TranslationQuestion[]>([]);
-  const [translationUserAnswers, setTranslationUserAnswers] = useState<TranslationUserAnswer[]>([]);
-
-  // Text Translation State
-  const [textTranslationQuestion, setTextTranslationQuestion] = useState<TextTranslationQuestion | null>(null);
-  const [textTranslationUserAnswer, setTextTranslationUserAnswer] = useState<TextTranslationUserAnswer | null>(null);
-
-  // Discussion State
-  const [discussionPrompts, setDiscussionPrompts] = useState<string[]>([]);
-  const [discussionTitle, setDiscussionTitle] = useState('');
-
-  // Translation List State
-  const [translationListSentences, setTranslationListSentences] = useState<string[]>([]);
-
-  // Matching Game State
-  const [matchingPairs, setMatchingPairs] = useState<QuizTerm[]>([]);
-  const [matchingResult, setMatchingResult] = useState<MatchingUserResult | null>(null);
-
-  // Flashcards State
-  const [flashcardTerms, setFlashcardTerms] = useState<QuizTerm[]>([]);
-
-  const [error, setError] = useState<string | null>(null);
-  const [loadingMessage, setLoadingMessage] = useState('Generating Your Quiz...');
   const [isInfoModalOpen, setIsInfoModalOpen] = useState(false);
-  const { language, t } = useTranslation();
+  const [isHelpModalOpen, setIsHelpModalOpen] = useState(false);
+  const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false);
+  const { t } = useTranslation();
 
-  const parseQuizletData = (data: string): QuizTerm[] => {
-    return data
-      .split('\n')
-      .map(line => line.trim())
-      .filter(line => line.includes('\t') && line.length > 2)
-      .map(line => {
-        const parts = line.split('\t');
-        return { term: parts[0].trim(), definition: parts[1].trim() };
-      });
-  };
-
-  const shuffleArray = <T,>(array: T[]): T[] => {
-    return [...array].sort(() => Math.random() - 0.5);
-  };
-
-  const handleGenerate = useCallback(async (
-      quizletData: string, 
-      type: GenerationType, 
-      cefrLevel: CEFRLevel, 
-      vocabChallenge: VocabularyChallenge, 
-      gramChallenge: GrammarChallenge, 
-      isTimed: boolean,
-      customGrammarTopics?: string[]
-    ) => {
-    setError(null);
-    setAppState('generating_mcq'); // A generic loading state
-    const terms = parseQuizletData(quizletData);
-    setIsTimedMode(isTimed);
-    setCurrentCefrLevel(cefrLevel);
-    setVocabularyChallenge(vocabChallenge);
-    setGrammarChallenge(gramChallenge);
-
-
-    if (terms.length === 0) {
-      setError("Invalid or empty data. Please paste the Quizlet data with tabs between terms and definitions.");
-      setAppState('input');
-      return;
-    }
-    setQuizTerms(terms);
-
-    if (type === 'mcq') {
-      setLoadingMessage('Generating Multiple Choice Quiz...');
-      setAppState('generating_mcq');
-      try {
-        const generatedQuestions = await generateMcqQuiz(terms, cefrLevel, vocabChallenge, gramChallenge);
-        const questionsWithShuffledOptions = generatedQuestions.map(q => ({
-          ...q,
-          id: crypto.randomUUID(),
-          options: shuffleArray(q.options),
-        }));
-        setQuestions(shuffleArray(questionsWithShuffledOptions));
-        setAppState('mcq_quiz');
-      } catch (err) {
-        console.error(err);
-        setError("Failed to generate the quiz. Please check your API key and try again.");
-        setAppState('input');
-      }
-    } else if (type === 'gap_fill') {
-        setLoadingMessage('Generating Gap-fill Exercise...');
-        setAppState('generating_gap_fill');
-        try {
-            const generatedQuestions = await generateGapFillQuiz(terms, cefrLevel, vocabChallenge, gramChallenge);
-            const questionsWithIds = generatedQuestions.map(q => ({
-                ...q,
-                id: crypto.randomUUID(),
-            }));
-            setGapFillQuestions(shuffleArray(questionsWithIds));
-            setAppState('gap_fill_quiz');
-        } catch (err) {
-            console.error(err);
-            setError("Failed to generate the gap-fill exercise. Please try again.");
-            setAppState('input');
-        }
-    } else if (type === 'translate_uk_en') {
-        if (terms.length < 5) {
-            setError("Please provide at least 5 terms for the translation exercise.");
-            setAppState('input');
-            return;
-        }
-        setLoadingMessage('Generating Translation Exercise (5 questions)...');
-        setAppState('generating_translation');
-        try {
-            const generatedQuestions = await generateTranslationQuiz(terms, cefrLevel, vocabChallenge, gramChallenge, customGrammarTopics);
-            const questionsWithIds = generatedQuestions.map(q => ({
-                ...q,
-                id: crypto.randomUUID(),
-            }));
-            setTranslationQuestions(shuffleArray(questionsWithIds));
-            setAppState('translation_quiz');
-        } catch (err) {
-            console.error(err);
-            setError("Failed to generate the translation exercise. Please try again.");
-            setAppState('input');
-        }
-    } else if (type === 'text_translation') {
-        setLoadingMessage('Generating Text for Translation...');
-        setAppState('generating_text_translation');
-        try {
-            const generatedText = await generateTextTranslationActivity(terms, cefrLevel, vocabChallenge, gramChallenge, customGrammarTopics);
-            setTextTranslationQuestion({
-                ...generatedText,
-                id: crypto.randomUUID(),
-            });
-            setAppState('text_translation_quiz');
-        } catch (err) {
-            console.error(err);
-            setError("Failed to generate the text translation. Please try again.");
-            setAppState('input');
-        }
-    } else if (type === 'translation_list') {
-        if (terms.length < 15) {
-            setError("Please provide at least 15 terms for the translation list.");
-            setAppState('input');
-            return;
-        }
-        setLoadingMessage('Generating Translation List (15 sentences)...');
-        setAppState('generating_translation_list');
-        try {
-            const sentences = await generateTranslationList(terms, cefrLevel, vocabChallenge, gramChallenge);
-            setTranslationListSentences(sentences);
-            setAppState('translation_list_results');
-        } catch (err) {
-            console.error(err);
-            setError("Failed to generate the translation list. Please try again.");
-            setAppState('input');
-        }
-    } else if (type === 'matching') {
-        if (terms.length < 6) {
-            setError("Please provide at least 6 terms for the matching exercise.");
-            setAppState('input');
-            return;
-        }
-        setLoadingMessage('Creating Matching Exercise...');
-        setAppState('generating_matching');
-        
-        // This is instant, but we'll show loading for a consistent feel
-        setTimeout(() => {
-            const shuffledTerms = shuffleArray(terms);
-            const selectedTerms = shuffledTerms.slice(0, 6);
-            setMatchingPairs(selectedTerms);
-            setAppState('matching_quiz');
-        }, 100);
-
-    } else if (type === 'flashcards') {
-        setLoadingMessage('Creating Flashcards...');
-        setAppState('generating_flashcards');
-        setTimeout(() => {
-            setFlashcardTerms(shuffleArray(terms));
-            setAppState('flashcards_activity');
-        }, 100);
-    } else { // discussion or agree_disagree
-        const title = type === 'discussion' ? 'Discussion Questions' : 'Agree/Disagree Statements';
-        setDiscussionTitle(title);
-        setLoadingMessage(`Generating ${title}...`);
-        setAppState('generating_discussion');
-        try {
-            const prompts = await generateDiscussionPrompts(terms, type, cefrLevel, vocabChallenge, gramChallenge);
-            setDiscussionPrompts(prompts);
-            setAppState('discussion_results');
-        } catch (err) {
-            console.error(err);
-            setError(`Failed to generate ${title}. Please try again.`);
-            setAppState('input');
-        }
-    }
-  }, [language]);
-
-  const handleMcqComplete = useCallback((answers: UserAnswer[]) => {
-    setUserAnswers(answers);
-    setAppState('final_results');
-  }, []);
-
-  const handleGapFillComplete = useCallback((answers: GapFillUserAnswer[]) => {
-    setGapFillUserAnswers(answers);
-    setAppState('final_results');
-  }, []);
-
-  const handleTranslationComplete = useCallback((answers: TranslationUserAnswer[]) => {
-    setTranslationUserAnswers(answers);
-    setAppState('final_results');
-  }, []);
-
-  const handleTextTranslationComplete = useCallback((answer: TextTranslationUserAnswer) => {
-    setTextTranslationUserAnswer(answer);
-    setAppState('final_results');
-  }, []);
-
-  const handleMatchingComplete = useCallback((result: MatchingUserResult) => {
-    setMatchingResult(result);
-    setAppState('final_results');
-  }, []);
-
-
-  const handleRestart = useCallback(() => {
-    // Stop any currently playing audio before resetting state
-    if (typeof window.speechSynthesis !== 'undefined') {
-        window.speechSynthesis.cancel();
-    }
-    setAppState('input');
-    setQuestions([]);
-    setUserAnswers([]);
-    setQuizTerms([]);
-    setGapFillQuestions([]);
-    setGapFillUserAnswers([]);
-    setTranslationQuestions([]);
-    setTranslationUserAnswers([]);
-    setTextTranslationQuestion(null);
-    setTextTranslationUserAnswer(null);
-    setDiscussionPrompts([]);
-    setDiscussionTitle('');
-    setTranslationListSentences([]);
-    setMatchingPairs([]);
-    setMatchingResult(null);
-    setFlashcardTerms([]);
-    setIsTimedMode(false);
-    setCurrentCefrLevel('B1');
-    setVocabularyChallenge('Standard');
-    setGrammarChallenge('Standard');
-    setError(null);
-  }, []);
-
-  const renderContent = () => {
-    switch (appState) {
-      case 'input':
-        return <InputScreen onGenerate={handleGenerate} error={error} />;
-      case 'generating_mcq':
-      case 'generating_gap_fill':
-      case 'generating_translation':
-      case 'generating_discussion':
-      case 'generating_translation_list':
-      case 'generating_matching':
-      case 'generating_text_translation':
-      case 'generating_flashcards':
-        return <LoadingScreen message={loadingMessage} />;
-      case 'mcq_quiz':
-        return <QuizScreen questions={questions} onComplete={handleMcqComplete} isTimedMode={isTimedMode} cefrLevel={currentCefrLevel} />;
-      case 'gap_fill_quiz':
-        return <GapFillQuizScreen questions={gapFillQuestions} onComplete={handleGapFillComplete} isTimedMode={isTimedMode} cefrLevel={currentCefrLevel} />;
-      case 'translation_quiz':
-        return <TranslationQuizScreen 
-                    questions={translationQuestions} 
-                    onComplete={handleTranslationComplete} 
-                    isTimedMode={isTimedMode} 
-                    cefrLevel={currentCefrLevel}
-                    language={language}
-                />;
-      case 'text_translation_quiz':
-        return <TextTranslationScreen 
-                    question={textTranslationQuestion!} 
-                    onComplete={handleTextTranslationComplete} 
-                    cefrLevel={currentCefrLevel}
-                    language={language}
-                />;
-      case 'matching_quiz':
-        return <MatchingScreen terms={matchingPairs} onComplete={handleMatchingComplete} />;
-      case 'flashcards_activity':
-        return <FlashcardsScreen terms={flashcardTerms} onRestart={handleRestart} />;
-      case 'final_results':
-        return <ResultsScreen 
-                    mcqUserAnswers={userAnswers} 
-                    mcqQuestions={questions} 
-                    gapFillUserAnswers={gapFillUserAnswers}
-                    gapFillQuestions={gapFillQuestions}
-                    translationUserAnswers={translationUserAnswers}
-                    translationQuestions={translationQuestions}
-                    textTranslationUserAnswer={textTranslationUserAnswer}
-                    textTranslationQuestion={textTranslationQuestion}
-                    matchingResult={matchingResult}
-                    matchingPairs={matchingPairs}
-                    quizTerms={quizTerms}
-                    onRestart={handleRestart}
-                    cefrLevel={currentCefrLevel}
-                />;
-      case 'discussion_results':
-        return <DiscussionScreen prompts={discussionPrompts} title={discussionTitle} onRestart={handleRestart} cefrLevel={currentCefrLevel} />;
-      case 'translation_list_results':
-        return <TranslationListScreen sentences={translationListSentences} title={t('translationListScreen.title')} onRestart={handleRestart} />;
-      default:
-        return <InputScreen onGenerate={handleGenerate} error={error} />;
-    }
+  // We need a way to pass data from Dashboard back to Home.
+  // DashboardScreen navigates with state, HomeScreen/InputScreen reads it.
+  const handleLoadListMock = (text: string) => {
+      // This mock function is needed because DashboardScreen was designed with a callback prop.
+      // In the router version, Dashboard navigates to '/' with state.
+      console.log("Loading list via router state");
   };
 
   return (
-    <div className="min-h-screen bg-slate-900 text-white flex flex-col items-center justify-center p-4 font-sans relative">
+    <div className="min-h-screen bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 flex flex-col items-center justify-start font-sans relative transition-colors duration-300">
+      <MobileHeader 
+        onOpenInfo={() => setIsInfoModalOpen(true)}
+        onOpenHelp={() => setIsHelpModalOpen(true)}
+        onOpenSettings={() => setIsSettingsModalOpen(true)}
+      />
+      
+      <ThemeToggle />
       <LanguageToggle />
 
-      <div className="w-full max-w-5xl mx-auto">
-        {renderContent()}
+      <div className="w-full max-w-6xl mx-auto mt-16 md:mt-8 px-4 md:px-8 pb-12">
+        <Routes>
+            <Route path="/" element={<HomeScreen onOpenHelp={() => setIsHelpModalOpen(true)} />} />
+            <Route path="/dashboard" element={<DashboardScreen onLoadList={handleLoadListMock} />} />
+            <Route path="/grammar" element={<GrammarLibraryScreen />} />
+            <Route path="/grammar/:id" element={<GrammarTopicScreen />} />
+        </Routes>
       </div>
 
-      <button
-        onClick={() => setIsInfoModalOpen(true)}
-        className="fixed bottom-4 left-4 bg-slate-700 hover:bg-slate-600 text-slate-300 font-semibold py-2 px-4 rounded-lg shadow-lg transition-colors text-sm z-50"
-        aria-label="Show application info and changelog"
-      >
-        {t('common.info')}
-      </button>
+      <div className="hidden md:flex fixed bottom-4 left-4 items-center gap-3 z-50">
+        <button
+            onClick={() => setIsInfoModalOpen(true)}
+            className="bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 font-medium py-2 px-4 rounded-full shadow-md border border-slate-200 dark:border-slate-700 transition-all text-sm flex items-center gap-2 hover:shadow-lg"
+            aria-label="Show application info and changelog"
+        >
+            <span>{t('common.info')}</span>
+            <span className="text-xs text-slate-400 dark:text-slate-500 bg-slate-100 dark:bg-slate-900 px-1.5 py-0.5 rounded">v{APP_VERSION}</span>
+        </button>
+        <button
+            onClick={() => setIsSettingsModalOpen(true)}
+            className="bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 p-2 rounded-full shadow-md border border-slate-200 dark:border-slate-700 transition-all hover:shadow-lg"
+            aria-label="Settings"
+        >
+            <SettingsIcon className="h-5 w-5" />
+        </button>
+      </div>
 
       {isInfoModalOpen && <InfoModal onClose={() => setIsInfoModalOpen(false)} />}
+      {isHelpModalOpen && <HelpModal onClose={() => setIsHelpModalOpen(false)} />}
+      {isSettingsModalOpen && <SettingsModal onClose={() => setIsSettingsModalOpen(false)} />}
     </div>
   );
 }

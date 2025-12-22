@@ -1,3 +1,4 @@
+
 import React, { createContext, useState, ReactNode, useCallback, useEffect } from 'react';
 
 export type Language = 'en' | 'uk';
@@ -18,7 +19,14 @@ interface LanguageContextType {
 export const LanguageContext = createContext<LanguageContextType | undefined>(undefined);
 
 export const LanguageProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
-  const [language, setLanguage] = useState<Language>('en');
+  const [language, setLanguageState] = useState<Language>(() => {
+    if (typeof window !== 'undefined') {
+        const saved = localStorage.getItem('language');
+        if (saved === 'en' || saved === 'uk') return saved;
+    }
+    return 'en';
+  });
+  
   const [allTranslations, setAllTranslations] = useState<AllTranslations | null>(null);
 
   useEffect(() => {
@@ -43,8 +51,17 @@ export const LanguageProvider: React.FC<{ children: ReactNode }> = ({ children }
     fetchTranslations();
   }, []);
 
+  const setLanguage = useCallback((lang: Language) => {
+      setLanguageState(lang);
+      localStorage.setItem('language', lang);
+  }, []);
+
   const toggleLanguage = useCallback(() => {
-    setLanguage(prevLang => (prevLang === 'en' ? 'uk' : 'en'));
+    setLanguageState(prevLang => {
+        const newLang = prevLang === 'en' ? 'uk' : 'en';
+        localStorage.setItem('language', newLang);
+        return newLang;
+    });
   }, []);
 
   if (!allTranslations) {

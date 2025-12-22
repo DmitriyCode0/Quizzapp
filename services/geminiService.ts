@@ -1,7 +1,41 @@
-// FIX: Import GenerateContentResponse to correctly type API responses.
-import { GoogleGenAI, Type, GenerateContentResponse } from "@google/genai";
-import { QuizTerm, Question, GapFillQuestion, CEFRLevel, TranslationQuestion, FeedbackItem, VocabularyChallenge, GrammarChallenge, Language } from '../types';
+
+import { GoogleGenAI, Type, GenerateContentResponse, Modality } from "@google/genai";
+import { QuizTerm, Question, GapFillQuestion, CEFRLevel, TranslationQuestion, FeedbackItem, VocabularyChallenge, GrammarChallenge, Language, GrammarTopicConfig, TeacherPersona } from '../types';
 import { grammarPools } from '../data/grammarData';
+import { grammarLibrary } from '../data/grammarLibrary';
+import {
+    isValidMcqResponse,
+    isValidGapFillResponse,
+    isValidTranslationQuizResponse,
+    isValidTextTranslationResponse,
+    isValidTranslationListResponse,
+    isValidDiscussionPromptsResponse,
+    isValidEvaluationResponse,
+    isValidParserResponse,
+    McqResponse,
+    GapFillResponse,
+    TranslationQuizResponse,
+    TextTranslationResponse,
+    TranslationListResponse,
+    DiscussionPromptsResponse,
+    EvaluationResponse,
+    ParserResponse
+} from './validation';
+import {
+    getTopicInstruction,
+    getDifficultyInstruction,
+    constructParserPrompt,
+    constructMcqPrompt,
+    constructGapFillPrompt,
+    constructTranslationQuizPrompt,
+    constructEvaluationPrompt,
+    constructDiscussionPrompt,
+    constructTranslationListPrompt,
+    constructTextTranslationPrompt,
+    constructTextEvaluationPrompt,
+    getEvaluationRubric,
+    getHolisticEvaluationRubric
+} from './prompts';
 
 if (!process.env.API_KEY) {
     throw new Error("API_KEY environment variable not set");
@@ -11,11 +45,6 @@ const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
 
 /**
  * A utility function to retry an async API call with exponential backoff.
- * @param apiCall The async function to call.
- * @param maxRetries The maximum number of retries.
- * @param initialDelay The initial delay in milliseconds.
- * @returns The result of the successful API call.
- * @throws The error from the last failed attempt.
  */
 const withRetry = async <T>(
   apiCall: () => Promise<T>, 
@@ -25,77 +54,157 @@ const withRetry = async <T>(
   for (let attempt = 1; attempt <= maxRetries; attempt++) {
     try {
       return await apiCall();
-    } catch (error) {
+    } catch (error: any) {
       if (attempt === maxRetries) {
         console.error(`API call failed after ${maxRetries} attempts.`, error);
-        throw error; // Re-throw the error on the last attempt
+        throw error;
       }
       const delay = initialDelay * Math.pow(2, attempt - 1);
-      console.warn(`API call failed. Attempt ${attempt}/${maxRetries}. Retrying in ${delay}ms...`);
+      console.warn(`API call failed (Status: ${error.status || 'Unknown'}). Attempt ${attempt}/${maxRetries}. Retrying in ${delay}ms...`);
       await new Promise(resolve => setTimeout(resolve, delay));
     }
   }
-  // This part is unreachable if maxRetries > 0, but required for type safety
   throw new Error('This should not be reached');
 };
 
+/**
+ * Generic function to generate content, parse JSON, and validate the structure.
+ */
+const generateFromGemini = async <T>(
+    prompt: string,
+    schema: any,
+    validator: (data: any) => data is T,
+    errorMessage: string,
+    temperature: number = 0.5
+): Promise<T> => {
+    try {
+        const response: GenerateContentResponse = await withRetry(() => ai.models.generateContent({
+            model: "gemini-2.5-flash",
+            contents: [{ role: 'user', parts: [{ text: prompt }] }],
+            config: {
+                responseMimeType: "application/json",
+                responseSchema: schema,
+                temperature: temperature,
+            },
+        }));
+        
+        const jsonText = response.text.trim();
+        let result: any;
+        
+        try {
+            result = JSON.parse(jsonText);
+        } catch (error) {
+            console.error("JSON Parse Error:", error, "\nJSON:", jsonText);
+            throw new Error(`Invalid JSON received from API for ${errorMessage}`);
+        }
 
-const getDifficultyInstruction = (
-    vocab: VocabularyChallenge,
-    grammar: GrammarChallenge,
-    type: 'mcq' | 'gap_fill' | 'translate_uk_en' | 'discussion' | 'text_translation'
-): string => {
-    
-    let vocabInstruction = '';
-    switch (vocab) {
-        case 'Basic':
-            vocabInstruction = "Use only basic, high-frequency vocabulary in the surrounding text/distractors.";
-            break;
-        case 'Standard':
-            vocabInstruction = "Use standard, on-level vocabulary appropriate for the CEFR level.";
-            break;
-        case 'Advanced':
-            vocabInstruction = "Incorporate some more advanced or less common (but still on-level) vocabulary to challenge the user.";
-            break;
+        if (validator(result)) {
+            return result;
+        } else {
+            console.error("Validation Error. Data:", result);
+            throw new Error(`Invalid data structure received for ${errorMessage}`);
+        }
+    } catch (error) {
+        console.error(`Error in ${errorMessage}:`, error);
+        throw new Error(`Could not generate ${errorMessage}. The API returned an error.`);
     }
-
-    let grammarInstruction = '';
-    switch (grammar) {
-        case 'Simple':
-            grammarInstruction = "Construct sentences using simple grammar (e.g., single clauses, basic tenses).";
-            break;
-        case 'Standard':
-            grammarInstruction = "Use standard sentence structures with a mix of simple and compound sentences appropriate for the CEFR level.";
-            break;
-        case 'Complex':
-            grammarInstruction = "Employ more complex grammatical structures (e.g., multiple clauses, advanced tenses, passive voice) to challenge the user.";
-            break;
-    }
-
-    switch (type) {
-        case 'mcq':
-            return `
-CRITICAL VOCABULARY INSTRUCTION: ${vocabInstruction} This is especially important for the incorrect options (distractors). For an 'Advanced' vocabulary challenge, distractors should be very close synonyms. For a 'Basic' challenge, they should be clearly wrong.
-CRITICAL GRAMMAR INSTRUCTION: ${grammarInstruction} This applies to the question sentence itself.
-`;
-        case 'gap_fill':
-        case 'translate_uk_en':
-        case 'text_translation':
-            return `
-CRITICAL VOCABULARY INSTRUCTION: ${vocabInstruction}
-CRITICAL GRAMMAR INSTRUCTION: ${grammarInstruction} The sentence structure must adhere to this.
-`;
-        case 'discussion':
-             if (vocab === 'Advanced' || grammar === 'Complex') {
-                 return "CRITICAL: The prompts should be more abstract, hypothetical, or philosophical, requiring deeper critical thinking and justification.";
-             } else if (vocab === 'Basic' || grammar === 'Simple') {
-                 return "CRITICAL: The prompts should be personal and direct, asking for simple opinions or experiences.";
-             } else {
-                 return "CRITICAL: The prompts should ask for opinions on familiar topics, requiring some explanation or justification.";
-             }
-    }
-    return ""; // Default case
 };
+
+const shuffleAndSlice = <T>(array: T[], limit: number): T[] => {
+    const shuffled = [...array].sort(() => 0.5 - Math.random());
+    return shuffled.slice(0, limit);
+};
+
+// Helper to resolve string IDs/Keys into full GrammarTopicConfig objects
+const resolveGrammarTopics = (topicIdsOrKeys: string[] | undefined): GrammarTopicConfig[] => {
+    if (!topicIdsOrKeys || topicIdsOrKeys.length === 0) return [];
+    
+    return topicIdsOrKeys.map(key => {
+        // Try finding by searchKey (legacy) or ID
+        const topic = grammarLibrary.find(t => t.searchKey === key || t.id === key);
+        if (topic) return topic;
+        
+        // Fallback: Create a temporary config if not found in library (shouldn't happen often)
+        return {
+            id: 'temp',
+            title: key,
+            level: 'B1',
+            description: '',
+            example: '',
+            tags: [],
+            searchKey: key
+        } as GrammarTopicConfig;
+    });
+};
+
+// --- Speech Generation (TTS) ---
+
+export const generateSpeech = async (text: string): Promise<string> => {
+    try {
+        const response = await ai.models.generateContent({
+            model: "gemini-2.5-flash-preview-tts",
+            contents: [{ parts: [{ text }] }],
+            config: {
+                responseModalities: [Modality.AUDIO],
+                speechConfig: {
+                    voiceConfig: {
+                        prebuiltVoiceConfig: { voiceName: 'Kore' },
+                    },
+                },
+            },
+        });
+
+        const base64Audio = response.candidates?.[0]?.content?.parts?.[0]?.inlineData?.data;
+        if (!base64Audio) {
+            throw new Error("No audio data returned from Gemini");
+        }
+        return base64Audio;
+    } catch (error) {
+        console.error("Speech generation failed:", error);
+        throw error;
+    }
+};
+
+// --- Parser Service ---
+const parserSchema = {
+    type: Type.OBJECT,
+    properties: {
+        terms: {
+            type: Type.ARRAY,
+            description: "An array of extracted English terms and their Ukrainian translations.",
+            items: {
+                type: Type.OBJECT,
+                properties: {
+                    term: { type: Type.STRING, description: "The English word or phrase." },
+                    definition: { type: Type.STRING, description: "The Ukrainian translation based on context." }
+                },
+                required: ["term", "definition"]
+            }
+        }
+    },
+    required: ["terms"]
+};
+
+export const parseRawInput = async (rawInput: string): Promise<string> => {
+    const prompt = constructParserPrompt(rawInput);
+
+    try {
+        const result = await generateFromGemini<ParserResponse>(
+            prompt,
+            parserSchema,
+            isValidParserResponse,
+            "Vocabulary Parser",
+            0.3
+        );
+        return result.terms.map(t => `${t.term}\t${t.definition}`).join('\n');
+    } catch (error) {
+        console.error("Parsing failed", error);
+        throw error;
+    }
+};
+
+
+// --- MCQ Quiz ---
 
 const mcqQuestionSchema = {
     type: Type.OBJECT,
@@ -133,62 +242,41 @@ const mcqQuizSchema = {
     required: ["questions"],
 };
 
-export const generateMcqQuiz = async (terms: QuizTerm[], cefrLevel: CEFRLevel, vocabChallenge: VocabularyChallenge, gramChallenge: GrammarChallenge): Promise<Omit<Question, 'id'>[]> => {
-    const isUkr = cefrLevel === 'A1 ukr';
-    const effectiveCefrLevel = isUkr ? 'A1' : cefrLevel;
+export const generateMcqQuiz = async (
+    terms: QuizTerm[], 
+    studentLevel: CEFRLevel, // Use Student Level for vocab difficulty
+    vocabChallenge: VocabularyChallenge, 
+    gramChallenge: GrammarChallenge,
+    customTopic?: string
+): Promise<Omit<Question, 'id'>[]> => {
+    // For MCQ, we don't really care about the Grammar Topic Level ("cefrLevel"), only student proficiency
+    const isUkr = studentLevel === 'A1 ukr';
+    const effectiveLevel = isUkr ? 'A1' : studentLevel;
     const difficultyInstruction = getDifficultyInstruction(vocabChallenge, gramChallenge, 'mcq');
+    const topicInstruction = getTopicInstruction(customTopic);
+    
+    // Limit to 20 questions max
+    const selectedTerms = terms.length > 20 ? shuffleAndSlice(terms, 20) : terms;
 
-    const prompt = isUkr 
-    ? `
-You are an expert quiz creator specializing in English vocabulary for Ukrainian learners.
-Your task is to generate a multiple-choice quiz from a list of English words and their Ukrainian translations.
-The CEFR level for the quiz is A1.
-${difficultyInstruction}
-SPECIAL INSTRUCTION: The questions must be in UKRAINIAN, testing the user's understanding of the English word. However, all four multiple-choice options and the 'correctAnswer' field MUST be in ENGLISH.
-The Ukrainian translation in the input is provided for context and can be used to formulate the Ukrainian question.
-For each word in the provided list, create one question. Ensure the 'originalTerm' field in your response matches the English word from the input list exactly.
-The list of words is:
-${terms.map(t => `- ${t.term}: ${t.definition}`).join('\n')}
-Please return the output as a single JSON object that strictly adheres to the provided schema. Do not include any other text or explanations in your response outside of the JSON object.
-`
-    : `
-You are an expert quiz creator specializing in English vocabulary for language learners.
-Your task is to generate a multiple-choice quiz from a list of English words and their Ukrainian translations.
-The Ukrainian translation is provided ONLY to give you context for the intended meaning of the English word, especially for words with multiple meanings. The entire quiz (questions, options, and answers) must be in ENGLISH.
-The difficulty of the vocabulary used in questions and incorrect options should be appropriate for a CEFR ${effectiveCefrLevel} learner.
-${difficultyInstruction}
-For each word in the provided list, create one question that tests its meaning. The question could be a definition, a synonym, an antonym, or a fill-in-the-blank sentence.
-Generate four options for each question: one correct answer and three plausible but incorrect distractors. Crucially, all four options (the correct answer and the three distractors) should be of similar length and grammatical structure to prevent the correct answer from being obvious. Ensure the 'originalTerm' field in your response matches the English word from the input list exactly.
-The list of words is:
-${terms.map(t => `- ${t.term}: ${t.definition}`).join('\n')}
-Please return the output as a single JSON object that strictly adheres to the provided schema. Do not include any other text or explanations in your response outside of the JSON object.
-`;
+    const prompt = constructMcqPrompt(
+        selectedTerms,
+        isUkr,
+        effectiveLevel,
+        difficultyInstruction,
+        topicInstruction
+    );
 
-    try {
-        // FIX: Explicitly type the response from generateContent.
-        const response: GenerateContentResponse = await withRetry(() => ai.models.generateContent({
-            model: "gemini-2.5-flash",
-            contents: prompt,
-            config: {
-                responseMimeType: "application/json",
-                responseSchema: mcqQuizSchema,
-                temperature: 0.7,
-            },
-        }));
-        
-        const jsonText = response.text.trim();
-        const result = JSON.parse(jsonText);
-        
-        if (result && result.questions) {
-            return result.questions as Omit<Question, 'id'>[];
-        } else {
-            throw new Error("Invalid response format from API.");
-        }
-    } catch (error) {
-        console.error("Error generating MCQ quiz with Gemini:", error);
-        throw new Error("Could not generate MCQ quiz. The API returned an error.");
-    }
+    const result = await generateFromGemini<McqResponse>(
+        prompt, 
+        mcqQuizSchema, 
+        isValidMcqResponse, 
+        "MCQ Quiz", 
+        0.5
+    );
+    return result.questions;
 };
+
+// --- Gap Fill Quiz ---
 
 const gapFillQuestionSchema = {
     type: Type.OBJECT,
@@ -225,64 +313,39 @@ const gapFillQuizSchema = {
     required: ["questions"],
 };
 
-export const generateGapFillQuiz = async (terms: QuizTerm[], cefrLevel: CEFRLevel, vocabChallenge: VocabularyChallenge, gramChallenge: GrammarChallenge): Promise<Omit<GapFillQuestion, 'id'>[]> => {
-    const isUkr = cefrLevel === 'A1 ukr';
-    const effectiveCefrLevel = isUkr ? 'A1' : cefrLevel;
+export const generateGapFillQuiz = async (
+    terms: QuizTerm[], 
+    studentLevel: CEFRLevel, // Use Student Level for sentence complexity
+    vocabChallenge: VocabularyChallenge, 
+    gramChallenge: GrammarChallenge,
+    customTopic?: string
+): Promise<Omit<GapFillQuestion, 'id'>[]> => {
+    const isUkr = studentLevel === 'A1 ukr';
+    const effectiveLevel = isUkr ? 'A1' : studentLevel;
     const difficultyInstruction = getDifficultyInstruction(vocabChallenge, gramChallenge, 'gap_fill');
+    const topicInstruction = getTopicInstruction(customTopic);
     
-    const prompt = isUkr
-    ? `
-You are an expert quiz creator specializing in English vocabulary for Ukrainian learners.
-Your task is to generate a set of gap-fill (fill-in-the-blank) exercises. The CEFR level is A1.
-${difficultyInstruction}
-SPECIAL INSTRUCTION: For each word in the provided list, create one UKRAINIAN sentence that provides a clear context for the target English word. In this Ukrainian sentence, replace where the English word would fit with '____' to create a blank.
-- The 'correctAnswer' field must be the original English word from the input list.
-- The 'originalTerm' field MUST be the original English word from the input list, exactly as provided.
-- The 'hint' must be the original Ukrainian translation from the input list.
-The list of words is:
-${terms.map(t => `- ${t.term}: ${t.definition}`).join('\n')}
-Please return the output as a single JSON object that strictly adheres to the provided schema. Do not include any other text or explanations in your response outside of the JSON object.
-`
-    : `
-You are an expert quiz creator specializing in English vocabulary for language learners.
-Your task is to generate a set of gap-fill (fill-in-the-blank) exercises from a list of English words and their Ukrainian translations.
-The difficulty of the sentence structure and vocabulary should be appropriate for a CEFR ${effectiveCefrLevel} learner.
-${difficultyInstruction}
-For each word in the provided list, create one ENGLISH sentence that uses the word in a natural context. In the sentence, replace the target English word with '____' to create a blank.
-- The 'correctAnswer' field should be the exact word that fits in the blank. This might be a conjugated form of the original term (e.g., 'goes' instead of 'go').
-- The 'originalTerm' field MUST be the original English word from the input list, exactly as provided.
-- The 'hint' field must be the original Ukrainian translation from the input list.
-The list of words is:
-${terms.map(t => `- ${t.term}: ${t.definition}`).join('\n')}
-Please return the output as a single JSON object that strictly adheres to the provided schema. Do not include any other text or explanations in your response outside of the JSON object.
-`;
+    const selectedTerms = terms.length > 20 ? shuffleAndSlice(terms, 20) : terms;
 
-    try {
-        // FIX: Explicitly type the response from generateContent.
-        const response: GenerateContentResponse = await withRetry(() => ai.models.generateContent({
-            model: "gemini-2.5-flash",
-            contents: prompt,
-            config: {
-                responseMimeType: "application/json",
-                responseSchema: gapFillQuizSchema,
-                temperature: 0.8,
-            },
-        }));
-        
-        const jsonText = response.text.trim();
-        const result = JSON.parse(jsonText);
-        
-        if (result && result.questions) {
-            return result.questions as Omit<GapFillQuestion, 'id'>[];
-        } else {
-            throw new Error("Invalid response format from API for gap-fill quiz.");
-        }
-    } catch (error) {
-        console.error("Error generating gap-fill quiz with Gemini:", error);
-        throw new Error("Could not generate gap-fill quiz. The API returned an error.");
-    }
+    const prompt = constructGapFillPrompt(
+        selectedTerms,
+        isUkr,
+        effectiveLevel,
+        difficultyInstruction,
+        topicInstruction
+    );
+
+    const result = await generateFromGemini<GapFillResponse>(
+        prompt, 
+        gapFillQuizSchema, 
+        isValidGapFillResponse, 
+        "Gap-fill Quiz", 
+        0.5
+    );
+    return result.questions;
 };
 
+// --- Translation Quiz ---
 
 const translationQuestionSchema = {
     type: Type.OBJECT,
@@ -321,79 +384,61 @@ const getNextCefrLevel = (level: Exclude<CEFRLevel, 'A1 ukr'>): Exclude<CEFRLeve
     if (currentIndex >= 0 && currentIndex < levels.length - 1) {
         return levels[currentIndex + 1];
     }
-    return 'C2'; // If already at C2, the next level is still C2
+    return 'C2';
 };
 
 export const generateTranslationQuiz = async (
     terms: QuizTerm[], 
-    cefrLevel: CEFRLevel, 
+    cefrLevel: CEFRLevel, // Grammar Topic Level
+    studentLevel: CEFRLevel, // Student Proficiency Level
     vocabChallenge: VocabularyChallenge, 
     gramChallenge: GrammarChallenge, 
-    customTopics?: string[]
+    customTopics?: string[],
+    customTopic?: string
 ): Promise<Omit<TranslationQuestion, 'id'>[]> => {
-    const effectiveCefrLevel = cefrLevel === 'A1 ukr' ? 'A1' : cefrLevel;
+    const effectiveGrammarLevel = cefrLevel === 'A1 ukr' ? 'A1' : cefrLevel;
+    const effectiveStudentLevel = studentLevel === 'A1 ukr' ? 'A1' : studentLevel;
     
-    const shuffledTerms = [...terms].sort(() => 0.5 - Math.random());
-    const selectedTerms = shuffledTerms.slice(0, 5);
+    const selectedTerms = shuffleAndSlice(terms, 5);
 
-    let focusedGrammarInstruction = '';
+    let resolvedGrammarTopics: GrammarTopicConfig[] = [];
+
     if (customTopics && customTopics.length > 0) {
-        focusedGrammarInstruction = `The sentences must specifically test the following grammatical structures:\n- ${customTopics.join('\n- ')}`;
+        resolvedGrammarTopics = resolveGrammarTopics(customTopics);
     } else {
-        const pool = grammarPools[effectiveCefrLevel];
+        const pool = grammarPools[effectiveGrammarLevel];
         if (pool && pool.length > 0) {
             const shuffled = [...pool].sort(() => 0.5 - Math.random());
             const selectionCount = Math.random() < 0.5 ? 2 : 3;
             const selectedPoints = shuffled.slice(0, Math.min(pool.length, selectionCount));
-            focusedGrammarInstruction = `The sentences must specifically test some of the following grammatical structures:\n- ${selectedPoints.join('\n- ')}`;
+            resolvedGrammarTopics = resolveGrammarTopics(selectedPoints);
         }
     }
 
     const difficultyInstruction = getDifficultyInstruction(vocabChallenge, gramChallenge, 'translate_uk_en');
+    const topicInstruction = getTopicInstruction(customTopic);
 
-    const prompt = `
-You are an expert in creating language translation exercises for English learners whose native language is Ukrainian.
-Your task is to generate a set of exactly 5 translation challenges from a list of English words and their Ukrainian translations.
+    const prompt = constructTranslationQuizPrompt(
+        selectedTerms,
+        effectiveGrammarLevel, // Target Grammar Level
+        effectiveStudentLevel, // Student Proficiency Level
+        difficultyInstruction,
+        resolvedGrammarTopics,
+        topicInstruction,
+        gramChallenge
+    );
 
-CRITICAL INSTRUCTION: The generated sentences must not only use the provided vocabulary but also test specific grammatical structures appropriate for the target CEFR level.
-The target level is CEFR ${effectiveCefrLevel}.
-${difficultyInstruction}
-${focusedGrammarInstruction}
-
-For each of the 5 words in the provided list, create one complete UKRAINIAN sentence that uses the Ukrainian translation in a natural context and implicitly requires the specified grammar for its English translation.
-Then, provide a correct and natural-sounding ENGLISH translation for that entire Ukrainian sentence. This English translation must demonstrate the target grammar.
-Ensure the 'originalTerm' field in your response matches the English word from the input list exactly.
-
-The list of 5 words is:
-${selectedTerms.map(t => `- ${t.term}: ${t.definition}`).join('\n')}
-
-Please return the output as a a single JSON object that strictly adheres to the provided schema. Do not include any other text or explanations in your response outside of the JSON object.
-`;
-
-    try {
-        const response: GenerateContentResponse = await withRetry(() => ai.models.generateContent({
-            model: "gemini-2.5-flash",
-            contents: prompt,
-            config: {
-                responseMimeType: "application/json",
-                responseSchema: translationQuizSchema,
-                temperature: 0.8,
-            },
-        }));
-        
-        const jsonText = response.text.trim();
-        const result = JSON.parse(jsonText);
-        
-        if (result && result.questions) {
-            return result.questions as Omit<TranslationQuestion, 'id'>[];
-        } else {
-            throw new Error("Invalid response format from API for translation quiz.");
-        }
-    } catch (error) {
-        console.error("Error generating translation quiz with Gemini:", error);
-        throw new Error("Could not generate translation quiz. The API returned an error.");
-    }
+    const result = await generateFromGemini<TranslationQuizResponse>(
+        prompt, 
+        translationQuizSchema, 
+        isValidTranslationQuizResponse, 
+        "Translation Quiz", 
+        0.5
+    );
+    return result.questions;
 };
+
+// --- Evaluation ---
 
 const feedbackItemSchema = {
     type: Type.OBJECT,
@@ -431,159 +476,62 @@ const evaluationSchema = {
     required: ["score", "feedback"],
 };
 
-const getEvaluationRubric = (level: Exclude<CEFRLevel, 'A1 ukr'>): { personality: string, rubric: string, specialInstructions: string } => {
-    let personality: string;
-    let rubric: string;
-    const specialInstructions = `**CRITICAL SCORING RULE:** The provided model answer is just one correct example. If the student's translation is grammatically correct and accurately conveys the same meaning, it MUST receive a high score, even if it uses different words or sentence structures. Do not penalize valid alternative phrasings.`;
-
-    switch (level) {
-        case 'A1':
-        case 'A2':
-            personality = `You are an encouraging and friendly English teacher for beginners. Your primary goal is to build confidence by focusing on communicative success.`;
-            rubric = `
-- **Communicative Success & Meaning (75 pts):** Focus on whether the core message was successfully conveyed. Be very lenient with minor grammatical errors (e.g., missing articles, simple prepositions) that do not prevent understanding.
-  - 75 pts: Core meaning is perfectly clear.
-  - 50-70 pts: Core meaning is understandable despite some errors.
-  - 25-49 pts: The meaning is difficult to understand.
-  - 0-24 pts: The meaning is completely wrong.
-- **Grammar & Syntax (15 pts):** Evaluate grammar very leniently. Only deduct points for major errors that obscure the meaning.
-  - 15 pts: No major errors that obscure meaning.
-  - 5-14 pts: Contains some errors, but meaning is still clear.
-  - 0-4 pts: Grammatically incoherent.
-- **Vocabulary Usage (10 pts):**
-  - 10 pts: The target vocabulary is used appropriately.
-  - 5-9 pts: An understandable but not ideal word is used.
-  - 0-4 pts: An incorrect word is used.`;
-            break;
-        case 'B1':
-        case 'B2':
-            personality = `You are a helpful and precise English tutor for intermediate learners. Your goal is to improve accuracy and fluency.`;
-            rubric = `
-- **Meaning & Accuracy (60 pts):** The translation must accurately capture the meaning and nuance of the original.
-  - 60 pts: Perfectly captures the full meaning.
-  - 45-55 pts: Core meaning is correct, but a minor detail is lost.
-  - 20-40 pts: A key part of the meaning is missed.
-  - 0-19 pts: Completely misrepresents the meaning.
-- **Grammar & Syntax (30 pts):** The sentence must be grammatically sound for the level.
-  - 30 pts: Grammatically flawless.
-  - 20-29 pts: 1-2 minor errors that don't obscure meaning.
-  - 10-19 pts: Significant errors that make the sentence awkward.
-  - 0-9 pts: Grammatically incoherent.
-- **Vocabulary Usage (10 pts):** Word choice should be correct and natural.
-  - 10 pts: Target word (or close synonym) is used correctly and naturally.
-  - 5-9 pts: Word choice is understandable but slightly unnatural.
-  - 0-4 pts: Incorrect word is used.`;
-            break;
-        case 'C1':
-        case 'C2':
-            personality = `You are a meticulous and expert English examiner for advanced learners. Your goal is to assess precision, nuance, and style.`;
-            rubric = `
-- **Meaning, Nuance & Register (50 pts):** The translation must perfectly capture not just the meaning, but also the tone, register, and subtle nuances of the original sentence.
-  - 50 pts: Flawless representation of meaning and tone.
-  - 35-49 pts: Captures meaning but misses some nuance or register.
-  - 15-34 pts: Major details of meaning are lost.
-  - 0-14 pts: Incorrect meaning.
-- **Grammar & Syntax (40 pts):** Expect a high degree of grammatical accuracy and sophisticated sentence structures.
-  - 40 pts: Grammatically perfect, uses complex structures naturally.
-  - 30-39 pts: A single, minor slip in grammar.
-  - 15-29 pts: Noticeable grammatical errors.
-  - 0-14 pts: Pervasive grammatical errors.
-- **Vocabulary & Idiomatic Usage (10 pts):** Word choice must be precise, idiomatic, and stylistically appropriate.
-  - 10 pts: Perfect and idiomatic word choice.
-  - 5-9 pts: Correct but slightly un-idiomatic word choice.
-  - 0-4 pts: Incorrect or inappropriate word choice.`;
-            break;
-    }
-    return { personality, rubric, specialInstructions };
-};
-
-
 export const evaluateTranslationAnswer = async (
     userAnswer: string, 
     modelAnswer: string, 
     ukrainianSentence: string,
     originalTerm: string,
-    cefrLevel: CEFRLevel,
-    language: Language
+    cefrLevel: CEFRLevel, // This should technically be studentLevel for grading standard, but grammar rules from context
+    language: Language,
+    selectedGrammarTopics?: string[],
+    teacherPersona: TeacherPersona = 'standard'
 ): Promise<{ score: number; feedback: FeedbackItem[] }> => {
     
     const effectiveCefrLevel = cefrLevel === 'A1 ukr' ? 'A1' : cefrLevel;
+    // Note: For evaluation, we use the student's level to determine leniency, 
+    // but the 'nextLevel' bonus is calculated relative to where they are.
     const nextLevel = getNextCefrLevel(effectiveCefrLevel);
+    
+    // We fetch a bonus pool from the next level up to encourage growth
     const grammarForBonusPool = grammarPools[nextLevel];
     const grammarForBonus = `The sentences must specifically test some of the following grammatical structures:\n- ${[...grammarForBonusPool].sort(() => 0.5 - Math.random()).slice(0, 5).join('\n- ')}`;
 
     const { personality, rubric, specialInstructions } = getEvaluationRubric(effectiveCefrLevel);
-
     const translationInstruction = language === 'uk'
         ? `**Step 5: Translate Feedback**
 CRITICAL: Before returning the JSON, translate the 'topic' and 'message' for every feedback item into fluent, natural-sounding Ukrainian.`
         : "";
 
-    const prompt = `
-${personality} Your task is to evaluate a student's translation from Ukrainian to English using a detailed rubric and provide structured feedback.
-The target CEFR level for this exercise is ${effectiveCefrLevel}.
-${specialInstructions}
+    // Resolve strings to config objects for the evaluation prompt
+    const resolvedGrammarTopics = resolveGrammarTopics(selectedGrammarTopics);
 
-**Context:**
-- Original Ukrainian Sentence: "${ukrainianSentence}"
-- Target English Vocabulary Word: "${originalTerm}"
-- A correct English translation (for reference): "${modelAnswer}"
-
-**Student's Answer to Evaluate:**
-"${userAnswer}"
-
-**EVALUATION INSTRUCTIONS (Follow these steps precisely):**
-
-**Step 1: Calculate Base Score (0-100 points)**
-Evaluate the translation strictly against the expectations for a ${effectiveCefrLevel} learner, using this level-specific rubric:
-${rubric}
-
-**Step 2: Identify and Award Bonus Points (0-10 points)**
-Now, analyze the student's answer for any vocabulary or grammar that is correctly and naturally used but is clearly **ABOVE** the target ${effectiveCefrLevel} level (i.e., it belongs to ${nextLevel} or higher).
-- For each instance of advanced vocabulary or grammar, award 2-5 bonus points.
-- Use this list of ${nextLevel} grammar topics as a reference for what constitutes advanced grammar:
-  ${grammarForBonus}
-
-**Step 3: Determine Final Score**
-The final score is \`Base Score + Bonus Points\`. It can exceed 100.
-
-**Step 4: Generate Structured Feedback**
-Provide a list of structured feedback items.
-- Only include feedback for 'grammar' errors or 'bonus' points for advanced usage.
-- DO NOT provide 'positive' feedback for things the student did correctly at their level.
-- DO NOT provide 'lexis' (vocabulary choice) feedback.
-- If there are no grammar errors and no bonus points to award, return an empty feedback array.
-For each point:
-- **type**: Must be 'grammar' or 'bonus'.
-- **topic**: A specific, concise topic (e.g., "Verb Tense", "Advanced Vocabulary").
-- **message**: The detailed feedback message explaining the error or the advanced usage.
-
-${translationInstruction}
-
-**CRITICAL:** Your entire output must be a single JSON object that strictly adheres to the provided schema. Do not include any other text.
-`;
+    const prompt = constructEvaluationPrompt(
+        personality,
+        rubric,
+        specialInstructions,
+        effectiveCefrLevel,
+        ukrainianSentence,
+        originalTerm,
+        modelAnswer,
+        userAnswer,
+        nextLevel,
+        grammarForBonus,
+        translationInstruction,
+        resolvedGrammarTopics,
+        teacherPersona
+    );
 
     try {
-        const response: GenerateContentResponse = await withRetry(() => ai.models.generateContent({
-            model: "gemini-2.5-flash",
-            contents: prompt,
-            config: {
-                responseMimeType: "application/json",
-                responseSchema: evaluationSchema,
-                temperature: 0.3,
-            },
-        }));
-        
-        const jsonText = response.text.trim();
-        const result = JSON.parse(jsonText);
-        
-        if (result && typeof result.score === 'number' && Array.isArray(result.feedback)) {
-            return result as { score: number; feedback: FeedbackItem[] };
-        } else {
-            throw new Error("Invalid response format from evaluation API.");
-        }
+        const result = await generateFromGemini<EvaluationResponse>(
+            prompt, 
+            evaluationSchema, 
+            isValidEvaluationResponse, 
+            "Translation Evaluation", 
+            0.3
+        );
+        return result;
     } catch (error) {
-        console.error("Error evaluating translation with Gemini:", error);
+         console.error("Error evaluating translation with Gemini:", error);
         const errorMessage = language === 'uk'
             ? "Вибачте, сталася помилка під час оцінювання відповіді. Будь ласка, спробуйте ще раз."
             : "Sorry, an error occurred while evaluating the answer. Please try again.";
@@ -594,6 +542,7 @@ ${translationInstruction}
     }
 };
 
+// --- Discussion Prompts ---
 
 const discussionPromptsSchema = {
     type: Type.OBJECT,
@@ -607,64 +556,44 @@ const discussionPromptsSchema = {
     required: ["prompts"],
 };
 
-export const generateDiscussionPrompts = async (terms: QuizTerm[], type: 'discussion' | 'agree_disagree', cefrLevel: CEFRLevel, vocabChallenge: VocabularyChallenge, gramChallenge: GrammarChallenge): Promise<string[]> => {
-    const isUkr = cefrLevel === 'A1 ukr';
-    const effectiveCefrLevel = isUkr ? 'A1' : cefrLevel;
+export const generateDiscussionPrompts = async (
+    terms: QuizTerm[], 
+    type: 'discussion' | 'agree_disagree', 
+    studentLevel: CEFRLevel, // Student Level for complexity
+    vocabChallenge: VocabularyChallenge, 
+    gramChallenge: GrammarChallenge,
+    customTopic?: string
+): Promise<string[]> => {
+    const isUkr = studentLevel === 'A1 ukr';
+    const effectiveLevel = isUkr ? 'A1' : studentLevel;
     const difficultyInstruction = getDifficultyInstruction(vocabChallenge, gramChallenge, 'discussion');
+    const topicInstruction = getTopicInstruction(customTopic);
+    const selectedTerms = terms.length > 10 ? shuffleAndSlice(terms, 10) : terms;
 
     const promptTypeInstruction = type === 'discussion'
         ? "Create an open-ended discussion question for each term that encourages critical thinking or sharing personal experiences related to the term."
         : "Create a provocative 'Agree or Disagree?' statement for each term. The statement should be debatable and encourage users to take a stance.";
 
-    const prompt = isUkr
-    ? `
-You are an expert in creating engaging educational materials for Ukrainian learners of English.
-Your task is to generate a list of prompts based on a list of English words.
-SPECIAL INSTRUCTION: All generated prompts must be in UKRAINIAN.
-The complexity and subject matter of the prompts should be appropriate for a CEFR A1 learner.
-${difficultyInstruction}
-Based on the list of words provided, generate thought-provoking prompts.
-${promptTypeInstruction}
-The list of words is:
-${terms.map(t => `- ${t.term}: ${t.definition}`).join('\n')}
-Please return the output as a a single JSON object that strictly adheres to the provided schema. Do not include any other text or explanations in your response outside of the JSON object. Generate one prompt for each term provided.
-`
-    : `
-You are an expert in creating engaging educational materials for English language learners.
-Your task is to generate a list of prompts based on a list of English words and their Ukrainian translations. The Ukrainian translation is for context only. All output must be in ENGLISH.
-The complexity and subject matter of the prompts should be appropriate for a CEFR ${effectiveCefrLevel} learner.
-${difficultyInstruction}
-Based on the list of words provided, generate thought-provoking prompts.
-${promptTypeInstruction}
-The list of words is:
-${terms.map(t => `- ${t.term}: ${t.definition}`).join('\n')}
-Please return the output as a a single JSON object that strictly adheres to the provided schema. Do not include any other text or explanations in your response outside of the JSON object. Generate one prompt for each term provided.
-`;
+    const prompt = constructDiscussionPrompt(
+        selectedTerms,
+        isUkr,
+        effectiveLevel,
+        difficultyInstruction,
+        topicInstruction,
+        promptTypeInstruction
+    );
 
-    try {
-        const response: GenerateContentResponse = await withRetry(() => ai.models.generateContent({
-            model: "gemini-2.5-flash",
-            contents: prompt,
-            config: {
-                responseMimeType: "application/json",
-                responseSchema: discussionPromptsSchema,
-                temperature: 0.9,
-            },
-        }));
-        
-        const jsonText = response.text.trim();
-        const result = JSON.parse(jsonText);
-        
-        if (result && result.prompts) {
-            return result.prompts as string[];
-        } else {
-            throw new Error(`Invalid response format from API for ${type} prompts.`);
-        }
-    } catch (error) {
-        console.error(`Error generating ${type} prompts with Gemini:`, error);
-        throw new Error(`Could not generate ${type} prompts. The API returned an error.`);
-    }
+    const result = await generateFromGemini<DiscussionPromptsResponse>(
+        prompt, 
+        discussionPromptsSchema, 
+        isValidDiscussionPromptsResponse, 
+        `${type} Prompts`, 
+        0.5
+    );
+    return result.prompts;
 };
+
+// --- Translation List ---
 
 const translationListSchema = {
     type: Type.OBJECT,
@@ -678,14 +607,22 @@ const translationListSchema = {
     required: ["sentences"],
 };
 
-export const generateTranslationList = async (terms: QuizTerm[], cefrLevel: CEFRLevel, vocabChallenge: VocabularyChallenge, gramChallenge: GrammarChallenge): Promise<string[]> => {
-    const effectiveCefrLevel = cefrLevel === 'A1 ukr' ? 'A1' : cefrLevel;
+export const generateTranslationList = async (
+    terms: QuizTerm[], 
+    cefrLevel: CEFRLevel, // Grammar Level
+    studentLevel: CEFRLevel, // Student Level
+    vocabChallenge: VocabularyChallenge, 
+    gramChallenge: GrammarChallenge,
+    customTopic?: string
+): Promise<string[]> => {
+    const effectiveGrammarLevel = cefrLevel === 'A1 ukr' ? 'A1' : cefrLevel;
+    const effectiveStudentLevel = studentLevel === 'A1 ukr' ? 'A1' : studentLevel;
     
-    const shuffledTerms = [...terms].sort(() => 0.5 - Math.random());
-    const selectedTerms = shuffledTerms.slice(0, 15);
+    const selectedTerms = shuffleAndSlice(terms, 15);
 
-    const pool = grammarPools[effectiveCefrLevel];
-    let focusedGrammarInstruction = '';
+    const pool = grammarPools[effectiveGrammarLevel];
+    let resolvedGrammarTopics: GrammarTopicConfig[] = [];
+
     if (pool && pool.length > 0) {
         const shuffled = [...pool].sort(() => 0.5 - Math.random());
         let selectionCount;
@@ -696,52 +633,33 @@ export const generateTranslationList = async (terms: QuizTerm[], cefrLevel: CEFR
             default: selectionCount = 4; break;
         }
         const selectedPoints = shuffled.slice(0, Math.min(pool.length, selectionCount));
-        focusedGrammarInstruction = `The sentences must specifically test some of the following grammatical structures:\n- ${selectedPoints.join('\n- ')}`;
+        resolvedGrammarTopics = resolveGrammarTopics(selectedPoints);
     }
 
     const difficultyInstruction = getDifficultyInstruction(vocabChallenge, gramChallenge, 'translate_uk_en');
+    const topicInstruction = getTopicInstruction(customTopic);
 
-    const prompt = `
-You are an expert in creating language translation exercises for English learners whose native language is Ukrainian.
-Your task is to generate a list of exactly 15 Ukrainian sentences for translation practice.
+    const prompt = constructTranslationListPrompt(
+        selectedTerms,
+        effectiveGrammarLevel, // Target Grammar
+        effectiveStudentLevel, // Student Proficiency
+        difficultyInstruction,
+        resolvedGrammarTopics,
+        topicInstruction,
+        gramChallenge
+    );
 
-CRITICAL INSTRUCTION: The generated sentences must not only use the provided vocabulary but also test specific grammatical structures appropriate for the target CEFR level.
-The target level is CEFR ${effectiveCefrLevel}.
-${difficultyInstruction}
-${focusedGrammarInstruction}
-
-For each of the 15 words in the provided list, create one complete UKRAINIAN sentence that uses the Ukrainian translation in a natural context and implicitly requires the specified grammar for its English translation.
-
-The list of 15 words is:
-${selectedTerms.map(t => `- ${t.term}: ${t.definition}`).join('\n')}
-
-Please return the output as a a single JSON object containing a list of 15 Ukrainian sentences. The JSON must strictly adhere to the provided schema. Do not include any other text or explanations.
-`;
-
-    try {
-        const response: GenerateContentResponse = await withRetry(() => ai.models.generateContent({
-            model: "gemini-2.5-flash",
-            contents: prompt,
-            config: {
-                responseMimeType: "application/json",
-                responseSchema: translationListSchema,
-                temperature: 0.8,
-            },
-        }));
-        
-        const jsonText = response.text.trim();
-        const result = JSON.parse(jsonText);
-        
-        if (result && result.sentences) {
-            return result.sentences as string[];
-        } else {
-            throw new Error("Invalid response format from API for translation list.");
-        }
-    } catch (error) {
-        console.error("Error generating translation list with Gemini:", error);
-        throw new Error("Could not generate translation list. The API returned an error.");
-    }
+    const result = await generateFromGemini<TranslationListResponse>(
+        prompt, 
+        translationListSchema, 
+        isValidTranslationListResponse, 
+        "Translation List", 
+        0.5
+    );
+    return result.sentences;
 };
+
+// --- Text Translation Activity ---
 
 const textTranslationSchema = {
     type: Type.OBJECT,
@@ -760,118 +678,61 @@ const textTranslationSchema = {
 
 export const generateTextTranslationActivity = async (
     terms: QuizTerm[], 
-    cefrLevel: CEFRLevel, 
+    cefrLevel: CEFRLevel, // Grammar Level
+    studentLevel: CEFRLevel, // Student Level
     vocabChallenge: VocabularyChallenge, 
     gramChallenge: GrammarChallenge, 
-    customTopics?: string[]
+    customTopics?: string[],
+    customTopic?: string
 ): Promise<{ ukrainianText: string; englishAnswer: string; }> => {
-    const effectiveCefrLevel = cefrLevel === 'A1 ukr' ? 'A1' : cefrLevel;
+    const effectiveGrammarLevel = cefrLevel === 'A1 ukr' ? 'A1' : cefrLevel;
+    const effectiveStudentLevel = studentLevel === 'A1 ukr' ? 'A1' : studentLevel;
     
-    let focusedGrammarInstruction = '';
+    let resolvedGrammarTopics: GrammarTopicConfig[] = [];
+
     if (customTopics && customTopics.length > 0) {
-        focusedGrammarInstruction = `The text must be written in a way that requires the use of the following grammatical structures for a natural English translation:\n- ${customTopics.join('\n- ')}`;
+        resolvedGrammarTopics = resolveGrammarTopics(customTopics);
     } else {
-        const pool = grammarPools[effectiveCefrLevel];
+        const pool = grammarPools[effectiveGrammarLevel];
         if (pool && pool.length > 0) {
             const shuffled = [...pool].sort(() => 0.5 - Math.random());
             const selectionCount = Math.random() < 0.5 ? 2 : 3;
             const selectedPoints = shuffled.slice(0, Math.min(pool.length, selectionCount));
-            focusedGrammarInstruction = `The text must be written in a way that requires the use of some of the following grammatical structures for a natural English translation:\n- ${selectedPoints.join('\n- ')}`;
+            resolvedGrammarTopics = resolveGrammarTopics(selectedPoints);
         }
     }
 
     const difficultyInstruction = getDifficultyInstruction(vocabChallenge, gramChallenge, 'text_translation');
+    const topicInstruction = getTopicInstruction(customTopic);
 
-    const prompt = `
-You are an expert in creating language translation exercises for English learners whose native language is Ukrainian.
-Your task is to generate a short, cohesive text for translation.
+    const prompt = constructTextTranslationPrompt(
+        terms,
+        effectiveGrammarLevel, // Target Grammar
+        effectiveStudentLevel, // Student Proficiency
+        difficultyInstruction,
+        resolvedGrammarTopics,
+        topicInstruction,
+        gramChallenge
+    );
 
-CRITICAL INSTRUCTION:
-1.  Create a cohesive text in UKRAINIAN that is approximately 5 sentences long.
-2.  The text should be on a single, clear topic.
-3.  Naturally incorporate several words from the provided vocabulary list. You DO NOT need to use all the words; prioritize creating a text that reads naturally.
-4.  The grammatical structures and vocabulary used should be appropriate for the target CEFR level: ${effectiveCefrLevel}.
-5.  ${difficultyInstruction}
-6.  ${focusedGrammarInstruction}
-7.  After creating the Ukrainian text, provide a correct and natural-sounding ENGLISH translation for the entire text.
-
-The vocabulary list is:
-${terms.map(t => `- ${t.term}: ${t.definition}`).join('\n')}
-
-Please return the output as a a single JSON object that strictly adheres to the provided schema. Do not include any other text or explanations.
-`;
-
-    try {
-        const response: GenerateContentResponse = await withRetry(() => ai.models.generateContent({
-            model: "gemini-2.5-flash",
-            contents: prompt,
-            config: {
-                responseMimeType: "application/json",
-                responseSchema: textTranslationSchema,
-                temperature: 0.85,
-            },
-        }));
-        
-        const jsonText = response.text.trim();
-        const result = JSON.parse(jsonText);
-        
-        if (result && result.ukrainianText && result.englishAnswer) {
-            return result as { ukrainianText: string; englishAnswer: string; };
-        } else {
-            throw new Error("Invalid response format from API for text translation.");
-        }
-    } catch (error) {
-        console.error("Error generating text translation with Gemini:", error);
-        throw new Error("Could not generate text translation. The API returned an error.");
-    }
-};
-
-const getHolisticEvaluationRubric = (level: Exclude<CEFRLevel, 'A1 ukr'>): { personality: string, rubric: string, specialInstructions: string } => {
-    let personality: string;
-    let rubric: string;
-    const specialInstructions = `**CRITICAL SCORING RULE:** The provided model answer is just one correct example. If the student's translation is grammatically correct and accurately conveys the same meaning, it MUST receive a high score, even if it uses different words or sentence structures. Do not penalize valid alternative phrasings.`;
-
-    switch (level) {
-        case 'A1':
-        case 'A2':
-            personality = `You are an encouraging and friendly English teacher for beginners. Your primary goal is to assess if the main message was communicated, not to nitpick grammar.`;
-            rubric = `
-- **A (90-100%): Excellent for this level.** Communicates the main ideas clearly with very few errors.
-- **B (80-89%): Good.** Successfully communicates the main ideas, but with some noticeable yet non-critical errors.
-- **C (70-79%): Satisfactory.** The overall message is mostly understandable, but requires some effort from the reader due to errors.
-- **D (60-69%): Needs Improvement.** Communication is frequently broken. Only parts of the message are clear.
-- **F (0-59%): Unsatisfactory.** Fails to convey the basic meaning of the text.`;
-            break;
-        case 'B1':
-        case 'B2':
-            personality = `You are a helpful and precise English tutor for intermediate learners. Your goal is to assess accuracy, fluency, and overall text cohesion.`;
-            rubric = `
-- **A (90-100%): Excellent.** Highly accurate, fluent, and natural. Captures the tone and reads well.
-- **B (80-89%): Good.** Successfully conveys the main ideas with good accuracy. May have a few minor slips that do not impede comprehension.
-- **C (70-79%): Satisfactory.** The core message is understandable, but noticeable errors in grammar or vocabulary affect clarity and flow.
-- **D (60-69%): Needs Improvement.** Comprehension is hindered by frequent errors. The text feels unnatural and is difficult to read.
-- **F (0-59%): Unsatisfactory.** Fails to convey the meaning of the original text due to major errors.`;
-            break;
-        case 'C1':
-        case 'C2':
-            personality = `You are a meticulous and expert English examiner for advanced learners. Your goal is to assess precision, nuance, stylistic choices, and text flow.`;
-            rubric = `
-- **A (90-100%): Excellent.** Flawless translation that captures all nuances, register, and tone. Reads as if written by a native speaker.
-- **B (80-89%): Good.** Very accurate and fluent, but may miss a subtle stylistic point or contain a rare, minor error.
-- **C (70-79%): Satisfactory.** Conveys the meaning accurately, but lacks the stylistic sophistication or contains several noticeable errors that would not be expected at an advanced level.
-- **D (60-69%): Needs Improvement.** Contains errors that an advanced learner should not be making, hindering fluency and clarity.
-- **F (0-59%): Unsatisfactory.** Does not meet the standards of an advanced learner.`;
-            break;
-    }
-    return { personality, rubric, specialInstructions };
+    const result = await generateFromGemini<TextTranslationResponse>(
+        prompt, 
+        textTranslationSchema, 
+        isValidTextTranslationResponse, 
+        "Text Translation", 
+        0.5
+    );
+    return result;
 };
 
 export const evaluateTextTranslationAnswer = async (
     userAnswer: string, 
     modelAnswer: string, 
     ukrainianText: string,
-    cefrLevel: CEFRLevel,
-    language: Language
+    cefrLevel: CEFRLevel, // Use Student Level for overall grading standards
+    language: Language,
+    selectedGrammarTopics?: string[],
+    teacherPersona: TeacherPersona = 'standard'
 ): Promise<{ score: number; feedback: FeedbackItem[] }> => {
     
     const effectiveCefrLevel = cefrLevel === 'A1 ukr' ? 'A1' : cefrLevel;
@@ -882,62 +743,32 @@ export const evaluateTextTranslationAnswer = async (
 CRITICAL: Before returning the JSON, translate the 'topic' and 'message' for every feedback item into fluent, natural-sounding Ukrainian.`
         : "";
 
-    const prompt = `
-${personality} Your task is to evaluate a student's translation of a Ukrainian text using a holistic rubric and provide structured, bullet-pointed feedback.
-The target CEFR level for this exercise is ${effectiveCefrLevel}.
-${specialInstructions}
+    const resolvedGrammarTopics = resolveGrammarTopics(selectedGrammarTopics);
 
-**Context:**
-- Original Ukrainian Text: "${ukrainianText}"
-- A correct English translation (for reference): "${modelAnswer}"
-
-**Student's Translation to Evaluate:**
-"${userAnswer}"
-
-**EVALUATION INSTRUCTIONS:**
-
-**1. Holistic Score (Can exceed 100):**
-Use this level-specific rubric to determine a score from the A-F scale:
-${rubric}
-- **Bonus Points (+2-10):** Award bonus points if the student correctly and naturally uses vocabulary or grammar structures that are clearly above the target ${effectiveCefrLevel} level.
-
-**2. Structured Feedback:**
-Provide your feedback as a list of bullet points.
-- Only include feedback for 'grammar' errors or 'bonus' points for advanced usage.
-- DO NOT provide 'positive' feedback for things done well.
-- DO NOT provide 'lexis' (vocabulary choice) feedback. Focus only on grammatical correctness and above-level usage.
-- If there are no grammar errors and no bonus points, return an empty feedback array.
-For each point:
-- **type**: Must be 'grammar' or 'bonus'.
-- **topic**: A specific, concise topic (e.g., "Tense Consistency", "Idiomatic Phrasing", "Advanced Vocabulary").
-- **message**: The detailed feedback message for the student.
-
-${translationInstruction}
-
-**CRITICAL:** Your entire output must be a single JSON object that strictly adheres to the provided schema. Do not include any other text.
-`;
+    const prompt = constructTextEvaluationPrompt(
+        personality,
+        rubric,
+        specialInstructions,
+        effectiveCefrLevel,
+        ukrainianText,
+        modelAnswer,
+        userAnswer,
+        translationInstruction,
+        resolvedGrammarTopics,
+        teacherPersona
+    );
 
     try {
-        const response: GenerateContentResponse = await withRetry(() => ai.models.generateContent({
-            model: "gemini-2.5-flash",
-            contents: prompt,
-            config: {
-                responseMimeType: "application/json",
-                responseSchema: evaluationSchema,
-                temperature: 0.3,
-            },
-        }));
-        
-        const jsonText = response.text.trim();
-        const result = JSON.parse(jsonText);
-        
-        if (result && typeof result.score === 'number' && Array.isArray(result.feedback)) {
-            return result as { score: number; feedback: FeedbackItem[] };
-        } else {
-            throw new Error("Invalid response format from text evaluation API.");
-        }
+        const result = await generateFromGemini<EvaluationResponse>(
+            prompt, 
+            evaluationSchema, 
+            isValidEvaluationResponse, 
+            "Text Evaluation", 
+            0.3
+        );
+        return result;
     } catch (error) {
-        console.error("Error evaluating text translation with Gemini:", error);
+         console.error("Error evaluating text translation with Gemini:", error);
         const errorMessage = language === 'uk'
             ? "Вибачте, сталася помилка під час оцінювання відповіді. Будь ласка, спробуйте ще раз."
             : "Sorry, an error occurred while evaluating the answer. Please try again.";

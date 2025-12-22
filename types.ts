@@ -1,7 +1,9 @@
+
 // FIX: Removed self-import of 'GenerationType' to resolve declaration conflict.
 
 export type AppState =
   | 'input'
+  | 'dashboard'
   | 'generating_mcq'
   | 'generating_gap_fill'
   | 'generating_translation'
@@ -26,12 +28,57 @@ export type CEFRLevel = 'A1' | 'A2' | 'B1' | 'B2' | 'C1' | 'C2' | 'A1 ukr';
 
 export type VocabularyChallenge = 'Basic' | 'Standard' | 'Advanced';
 export type GrammarChallenge = 'Simple' | 'Standard' | 'Complex';
+export type TeacherPersona = 'learning' | 'standard' | 'strict';
 
 export type Language = 'en' | 'uk';
 
 export interface QuizTerm {
   term: string;
   definition: string;
+}
+
+export interface SavedList {
+  id: string;
+  name: string;
+  date: number; // timestamp
+  rawText: string;
+  termCount: number;
+}
+
+export interface HistoryItem {
+  id: string;
+  date: number; // timestamp
+  type: GenerationType;
+  score?: number;
+  total?: number;
+  details?: string; // e.g., "A1 - Standard"
+  grammarTopics?: string[]; // Added: List of selected grammar topics for this activity
+}
+
+// --- Grammar Architecture ---
+
+export interface AiDifficultyConfig {
+    Basic: string;    // Instructions for 'Simple'/'Basic' difficulty
+    Standard: string; // Instructions for 'Standard' difficulty
+    Advanced: string; // Instructions for 'Complex'/'Advanced' difficulty
+}
+
+export interface GrammarTopicConfig {
+    id: string;          // Unique key (e.g., 'b1-pp-vs-ps')
+    title: string;       // Display name
+    level: Exclude<CEFRLevel, 'A1 ukr'>;
+    
+    // Content for the Library UI
+    description: string; 
+    example: string;
+    tags: string[];
+    searchKey: string;   // The legacy string used to match selection from grammarData.ts
+    
+    // New: Specific instructions for the AI Generator
+    aiConfig?: {
+        systemRule: string; 
+        difficultyConfig: AiDifficultyConfig;
+    };
 }
 
 // MCQ Quiz

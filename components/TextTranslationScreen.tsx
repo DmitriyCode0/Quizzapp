@@ -1,60 +1,47 @@
-import React, { useState, useEffect, useRef } from 'react';
-import { TextTranslationQuestion, TextTranslationUserAnswer, FeedbackItem, CEFRLevel, Language } from '../types';
-import { evaluateTextTranslationAnswer } from '../services/geminiService';
+
+import React, { useEffect } from 'react';
+import { TextTranslationQuestion, TextTranslationUserAnswer, CEFRLevel, Language, TeacherPersona } from '../types';
 import AudioButton from './AudioButton';
+import BackButton from './BackButton';
 import { useTranslation } from '../hooks/useTranslation';
+import { useTextTranslation } from '../hooks/useTextTranslation';
+import DiffViewer from './DiffViewer';
 
 interface TextTranslationScreenProps {
   question: TextTranslationQuestion;
   onComplete: (answer: TextTranslationUserAnswer) => void;
   cefrLevel: CEFRLevel;
   language: Language;
+  onBack: () => void;
+  selectedGrammarTopics?: string[];
+  teacherPersona?: TeacherPersona;
 }
 
-const TextTranslationScreen: React.FC<TextTranslationScreenProps> = ({ question, onComplete, cefrLevel, language }) => {
-  const [inputValue, setInputValue] = useState('');
-  const [isAnswered, setIsAnswered] = useState(false);
-  const [isEvaluating, setIsEvaluating] = useState(false);
-  const [evaluation, setEvaluation] = useState<{ score: number, feedback: FeedbackItem[] } | null>(null);
-  
-  const formRef = useRef<HTMLFormElement>(null);
+const TextTranslationScreen: React.FC<TextTranslationScreenProps> = ({ 
+    question, 
+    onComplete, 
+    cefrLevel, 
+    language, 
+    onBack,
+    selectedGrammarTopics = [],
+    teacherPersona = 'standard' as TeacherPersona
+}) => {
   const { t } = useTranslation();
+  
+  const {
+      inputValue,
+      setInputValue,
+      isAnswered,
+      isEvaluating,
+      evaluation,
+      formRef,
+      handleCheckAnswer,
+      handleFinish
+  } = useTextTranslation({ question, onComplete, cefrLevel, language, selectedGrammarTopics, teacherPersona });
 
   useEffect(() => {
     document.getElementById('text-translation-input')?.focus();
   }, []);
-
-  const handleCheckAnswer = async () => {
-    if (isAnswered || isEvaluating) return;
-
-    if (typeof window.speechSynthesis !== 'undefined') {
-        window.speechSynthesis.cancel();
-    }
-    setIsEvaluating(true);
-    const userAnswer = inputValue.trim();
-    const evalResult = await evaluateTextTranslationAnswer(
-        userAnswer,
-        question.englishAnswer,
-        question.ukrainianText,
-        cefrLevel,
-        language
-    );
-    
-    setIsEvaluating(false);
-    setIsAnswered(true);
-    setEvaluation(evalResult);
-  };
-
-  const handleFinish = () => {
-    if (!evaluation) return;
-    onComplete({
-        questionId: question.id,
-        userAnswer: inputValue.trim(),
-        correctAnswer: question.englishAnswer,
-        score: evaluation.score,
-        feedback: evaluation.feedback
-    });
-  };
 
   const formSubmitHandler = (e: React.FormEvent) => {
     e.preventDefault();
@@ -73,64 +60,102 @@ const TextTranslationScreen: React.FC<TextTranslationScreenProps> = ({ question,
   };
   
   const getInputBorderColor = () => {
-      if (!isAnswered || !evaluation) return 'border-slate-600 focus:border-indigo-500 focus:ring-indigo-500';
-      if (evaluation.score >= 90) return 'border-green-500 ring-green-500';
-      if (evaluation.score >= 70) return 'border-yellow-500 ring-yellow-500';
-      return 'border-red-500 ring-red-500';
+      if (!isAnswered || !evaluation) return 'border-slate-200 dark:border-slate-700 focus:border-indigo-500 focus:ring-indigo-100 dark:focus:ring-indigo-900/30';
+      if (teacherPersona === 'learning') return 'border-indigo-500 ring-1 ring-indigo-500 bg-indigo-50 dark:bg-indigo-900/20'; // Neutral color
+      if (evaluation.score >= 90) return 'border-emerald-500 ring-1 ring-emerald-500 bg-emerald-50 dark:bg-emerald-900/20';
+      if (evaluation.score >= 70) return 'border-amber-500 ring-1 ring-amber-500 bg-amber-50 dark:bg-amber-900/20';
+      return 'border-rose-500 ring-1 ring-rose-500 bg-rose-50 dark:bg-rose-900/20';
   }
 
   return (
-    <div className="bg-slate-800 p-8 rounded-lg shadow-2xl w-full max-w-3xl animate-fade-in">
-        <div className="mb-6 text-center">
-            <h1 className="text-3xl font-bold text-indigo-400">{t('textTranslationScreen.title')}</h1>
-            <p className="text-slate-300 mt-1">{t('textTranslationScreen.subtitle')}</p>
+    <div className="bg-white dark:bg-slate-900 p-6 md:p-10 rounded-2xl shadow-xl border border-slate-200 dark:border-slate-800 w-full max-w-4xl animate-fade-in relative mx-auto flex flex-col min-h-[80vh] transition-colors duration-300">
+        <BackButton onClick={onBack} />
+        <div className="mb-8 text-center">
+            <h1 className="text-2xl md:text-3xl font-bold text-slate-900 dark:text-white tracking-tight">{t('textTranslationScreen.title')}</h1>
+            <p className="text-slate-500 dark:text-slate-400 mt-1">{t('textTranslationScreen.subtitle')}</p>
         </div>
 
-        <form ref={formRef} onSubmit={formSubmitHandler} className="flex flex-col items-center">
-            <div className="w-full text-left mb-4 p-4 bg-slate-900 rounded-md border border-slate-700 flex items-start gap-3">
-                <p className="text-lg text-slate-200 leading-relaxed whitespace-pre-wrap flex-grow">
-                    {question.ukrainianText}
-                </p>
-                <AudioButton textToSpeak={question.ukrainianText} lang="uk-UA" />
+        <form ref={formRef} onSubmit={formSubmitHandler} className="flex flex-col items-center flex-grow">
+            {selectedGrammarTopics.length > 0 && (
+                <div className="w-full mb-6 flex flex-wrap gap-2 justify-center bg-slate-50 dark:bg-slate-800 p-3 rounded-xl border border-slate-100 dark:border-slate-700">
+                    <span className="text-slate-400 dark:text-slate-500 text-[10px] font-bold uppercase tracking-wider self-center">{t('common.grammarFocus')}:</span>
+                    {selectedGrammarTopics.map(topic => (
+                        <span key={topic} className="text-[10px] font-bold bg-white dark:bg-slate-700 text-indigo-600 dark:text-indigo-400 px-2 py-1 rounded border border-indigo-100 dark:border-slate-600 shadow-sm">
+                            {topic}
+                        </span>
+                    ))}
+                </div>
+            )}
+
+            <div className="w-full text-left mb-6 p-6 bg-slate-50 dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 flex items-start gap-4">
+                <div className="flex-grow">
+                    <label className="block text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider mb-2">{t('textTranslationScreen.originalUkrainianText')}</label>
+                    <p className="text-lg text-slate-800 dark:text-slate-200 leading-relaxed whitespace-pre-wrap font-serif">
+                        {question.ukrainianText}
+                    </p>
+                </div>
+                <div className="mt-6">
+                    <AudioButton textToSpeak={question.ukrainianText} lang="uk-UA" />
+                </div>
             </div>
             
-            <textarea
-                id="text-translation-input"
-                value={inputValue}
-                onChange={(e) => setInputValue(e.target.value)}
-                onKeyDown={handleTextareaKeyDown}
-                disabled={isAnswered || isEvaluating}
-                placeholder={t('textTranslationScreen.textareaPlaceholder')}
-                className={`w-full h-48 p-4 bg-slate-700 border rounded-lg focus:ring-2 focus:outline-none transition-colors duration-300 resize-y mb-6 ${getInputBorderColor()}`}
-                autoFocus
-            />
+            {isAnswered && evaluation ? (
+                <div className={`w-full min-h-[12rem] p-5 border rounded-xl shadow-sm mb-8 text-lg leading-relaxed whitespace-pre-wrap ${getInputBorderColor()}`}>
+                    <DiffViewer 
+                        userAnswer={inputValue} 
+                        correctAnswer={question.englishAnswer} 
+                        isCorrectOverride={evaluation.score >= 100}
+                        mode="words"
+                        hideMissing={true}
+                    />
+                </div>
+            ) : (
+                <textarea
+                    id="text-translation-input"
+                    value={inputValue}
+                    onChange={(e) => setInputValue(e.target.value)}
+                    onKeyDown={handleTextareaKeyDown}
+                    disabled={isAnswered || isEvaluating}
+                    placeholder={t('textTranslationScreen.textareaPlaceholder')}
+                    className={`w-full h-48 p-5 bg-white dark:bg-slate-900 border rounded-xl shadow-sm focus:ring-4 focus:outline-none transition-all duration-200 resize-y mb-8 text-lg text-slate-800 dark:text-slate-200 placeholder-slate-400 dark:placeholder-slate-500 leading-relaxed ${getInputBorderColor()}`}
+                    autoFocus
+                />
+            )}
 
             {isEvaluating && (
-                <div className="flex items-center gap-3 text-lg text-slate-300 mb-6">
-                    <div className="w-6 h-6 border-2 border-t-indigo-400 border-slate-600 rounded-full animate-spin"></div>
+                <div className="flex items-center gap-3 text-sm font-medium text-indigo-600 dark:text-indigo-400 mb-8 bg-indigo-50 dark:bg-indigo-900/30 px-4 py-2 rounded-full animate-pulse">
+                    <div className="w-4 h-4 border-2 border-t-indigo-600 dark:border-t-indigo-400 border-indigo-200 dark:border-indigo-800 rounded-full animate-spin"></div>
                     <span>{t('textTranslationScreen.evaluating')}</span>
                 </div>
             )}
 
             {isAnswered && evaluation && (
-                <div className="text-center mb-6 animate-fade-in w-full bg-slate-900/50 p-4 rounded-lg">
-                    <p className="text-3xl font-bold">
-                        {t('translationQuizScreen.score')} <span className={evaluation.score >= 90 ? 'text-green-400' : evaluation.score >= 70 ? 'text-yellow-400' : 'text-red-400'}>{evaluation.score}%</span>
-                    </p>
-                    <div className="mt-4 text-left space-y-3">
+                <div className="text-center mb-8 animate-fade-in w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 p-6 rounded-2xl shadow-sm">
+                    {teacherPersona !== 'learning' && (
+                        <div className="mb-6 pb-6 border-b border-slate-100 dark:border-slate-800">
+                            <p className="text-4xl font-bold text-slate-900 dark:text-white">
+                                {t('translationQuizScreen.score')} <span className={evaluation.score >= 90 ? 'text-emerald-600 dark:text-emerald-400' : evaluation.score >= 70 ? 'text-amber-500 dark:text-amber-400' : 'text-rose-600 dark:text-rose-400'}>{evaluation.score}%</span>
+                            </p>
+                        </div>
+                    )}
+                    
+                    <div className="text-left grid grid-cols-1 gap-6">
                         <div>
-                            <p className="font-semibold text-indigo-300">{t('common.feedback')}</p>
-                             <div className="space-y-1 mt-1">
+                            <p className="font-bold text-slate-700 dark:text-slate-300 text-xs uppercase tracking-wide mb-3">{t('common.feedback')}</p>
+                             <div className="space-y-3">
                                 {evaluation.feedback.map((item, index) => (
-                                    <p key={index} className="text-slate-200">- <span className="font-semibold">{item.topic}:</span> {item.message}</p>
+                                    <div key={index} className="flex gap-3 text-sm bg-slate-50 dark:bg-slate-800 p-3 rounded-lg border border-slate-100 dark:border-slate-700">
+                                        <span className={`font-bold shrink-0 ${item.type === 'bonus' ? 'text-amber-600 dark:text-amber-400' : 'text-slate-800 dark:text-slate-200'}`}>{item.topic}:</span>
+                                        <span className="text-slate-600 dark:text-slate-400 leading-relaxed">{item.message}</span>
+                                    </div>
                                 ))}
                             </div>
                         </div>
-                        {evaluation.score < 100 && (
-                            <div className="border-t border-slate-700 pt-3">
-                                <p className="text-slate-300 text-md font-semibold">{t('translationQuizScreen.suggestedAnswer')}</p>
-                                <div className="flex items-center gap-3">
-                                    <p className="italic text-green-300 flex-grow">{question.englishAnswer}</p>
+                        {(evaluation.score < 100 || teacherPersona === 'learning') && (
+                            <div>
+                                <p className="font-bold text-slate-400 dark:text-slate-500 text-xs uppercase tracking-wide mb-2">{t('translationQuizScreen.suggestedAnswer')}</p>
+                                <div className="flex items-center gap-3 bg-emerald-50 dark:bg-emerald-900/20 border border-emerald-100 dark:border-emerald-800 p-4 rounded-xl">
+                                    <p className="text-emerald-800 dark:text-emerald-300 flex-grow leading-relaxed">{question.englishAnswer}</p>
                                     <AudioButton textToSpeak={question.englishAnswer} lang="en-US" />
                                 </div>
                             </div>
@@ -142,7 +167,7 @@ const TextTranslationScreen: React.FC<TextTranslationScreenProps> = ({ question,
             <button
                 type="submit"
                 disabled={(!isAnswered && !inputValue.trim()) || isEvaluating}
-                className="w-full max-w-sm bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3 px-4 rounded-lg transition-transform transform hover:scale-105 disabled:bg-slate-600 disabled:cursor-not-allowed"
+                className="w-full max-w-sm bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-4 px-6 rounded-xl shadow-lg transition-transform transform hover:-translate-y-0.5 disabled:bg-slate-300 dark:disabled:bg-slate-700 disabled:cursor-not-allowed disabled:shadow-none"
             >
                 {isAnswered ? t('textTranslationScreen.finishAndSeeResults') : t('common.checkAnswer')}
             </button>
