@@ -7,6 +7,7 @@ import { useTranslation } from '../hooks/useTranslation';
 import B1_PastSimpleVsPresentPerfect from './grammar/B1_PastSimpleVsPresentPerfect';
 import A2_FirstConditional from './grammar/A2_FirstConditional';
 import A1_ThisThatTheseThose from './grammar/A1_ThisThatTheseThose';
+import A1_PresentSimpleToDo from './grammar/A1_PresentSimpleToDo';
 
 const GrammarTopicScreen: React.FC = () => {
     const { id } = useParams();
@@ -43,6 +44,9 @@ const GrammarTopicScreen: React.FC = () => {
         }
         if (topic.id === 'a1-this-that-these-those') {
             return <A1_ThisThatTheseThose />;
+        }
+        if (topic.id === 'a1-present-simple') {
+            return <A1_PresentSimpleToDo />;
         }
 
         // Default generic view

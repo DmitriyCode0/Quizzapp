@@ -25,12 +25,20 @@ const manualEntries: GrammarTopicConfig[] = [
     },
     {
         id: 'a1-present-simple',
-        title: "Present Simple",
+        title: "Present Simple (to do)",
         level: 'A1',
-        description: "Used for facts, habits, and daily routines.",
-        example: "I work in an office. He plays football.",
-        tags: ['tenses', 'present', 'habits'],
-        searchKey: "Present Simple"
+        description: "The foundation of English. Used for habits, facts, and routines. Learn how to use 'Do/Does' correctly.",
+        example: "I work every day. He doesn't like tea. Do you live here?",
+        tags: ['tenses', 'present', 'habits', 'action verbs'],
+        searchKey: "Present Simple",
+        aiConfig: {
+            systemRule: "The exercise must strictly test the 'Present Simple' tense with Action Verbs (to do). Do NOT use the verb 'to be'. Focus on the usage of 'Do/Does' in questions/negatives and the '-s' ending for He/She/It.",
+            difficultyConfig: {
+                Basic: "Use simple I/You/We/They subjects where no -s change is needed. Keep sentences short. Example: 'I like apples.'",
+                Standard: "Focus on He/She/It subjects requiring -s/-es endings and 'Does' helpers. Example: 'She watches TV every day.'",
+                Advanced: "Mix subject pronouns with proper names and require negative forms. Example: 'My brother doesn't play football on Sundays.'"
+            }
+        }
     },
     {
         id: 'a1-present-continuous',
