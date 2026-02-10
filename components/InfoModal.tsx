@@ -1,5 +1,5 @@
 
-import React from "react";
+import React from 'react';
 import CloseIcon from './icons/CloseIcon';
 import { useTranslation } from '../hooks/useTranslation';
 import { APP_VERSION } from '../constants';
@@ -9,10 +9,6 @@ interface InfoModalProps {
 }
 
 const versionHistory = [
-    {
-        version: '1.26.0',
-        changes: ['changePresentSimpleToDo']
-    },
     {
         version: '1.25.1',
         changes: ['uiTweaks']

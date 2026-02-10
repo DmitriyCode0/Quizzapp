@@ -18,8 +18,8 @@ interface ConfigurationPanelProps {
     setTeacherPersona: React.Dispatch<React.SetStateAction<TeacherPersona>>;
 }
 
-const cefrOptions: CEFRLevel[] = ['A1', 'A2', 'B1', 'B2', 'C1', /*'C2',*/ 'A1 ukr'];
-const studentOptions: CEFRLevel[] = ['A1', 'A2', 'B1', 'B2', 'C1', 'C2'];
+const cefrOptions: CEFRLevel[] = ['A1', 'A2', 'B1', 'B2', 'C1', /*'C2', 'A1 ukr'*/];
+const studentOptions: CEFRLevel[] = ['A1', 'A2', 'B1', 'B2', 'C1', /*'C2'*/];
 const vocabOptions: VocabularyChallenge[] = ['Basic', 'Standard', 'Advanced'];
 const grammarOptions: GrammarChallenge[] = ['Simple', 'Standard', 'Complex'];
 const teacherOptions: TeacherPersona[] = ['learning', 'standard', 'strict'];

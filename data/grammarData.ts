@@ -4,10 +4,15 @@ import { CEFRLevel } from '../types';
 export const grammarPools: Record<Exclude<CEFRLevel, 'A1 ukr'>, string[]> = {
     'A1': [
         // Present
-        "Verb 'To Be'",
-        "Present Simple",
+        "Present Simple with verb: positive",
+        "Present Simple with verb: negative",
+        "Present Simple with verb: questions",
+        "Present Simple with verb mix: +, -, ?",
+        "Present Simple Verb 'To Be' positive",
+        "Present Simple Verb 'To Be' negative",
+        "Present Simple Verb 'To Be' questions",
+        "Present Simple 'To Be' vs 'To Do' mix: positive, negative, questions",
         "Present Continuous",
-        "Have got",
         
         // Past & Future
         "Was / Were",
@@ -16,33 +21,37 @@ export const grammarPools: Record<Exclude<CEFRLevel, 'A1 ukr'>, string[]> = {
         "Future: Will",
         
         // Modals & Verbs
-        "Can / Can't",
+        "Can, Could",
         "Imperatives",
-        "Would like",
         "Verb Patterns (Inf/Ger)",
         
         // Nouns & Pronouns
-        "Articles & Plurals",
-        "Pronouns",
+        "Countable & Uncountable",
+        "Subject Pronouns",
         "Object Pronouns",
-        "Possessives",
+        "Subject Pronouns vs Object Pronouns",
+        "Possessive Adjectives",
+        "Subject Pronouns vs Object Pronouns vs Possessive Adjectives",
         "This / That / These / Those",
-        "Quantifiers",
+        "Quantifiers many, much, little, few",
         "There is / There are",
         
         // Adjectives & Adverbs
-        "Adjectives",
-        "Comparatives",
-        "Superlatives",
-        "Adverbs",
+
+        "Comparative Adjectives",
+        "Superlative Adjectives",
+        "Comparatives vs Superlatives Adjectives",
+        "Adverbs formation",
+        "Comparatives & Superlatives Adverbs",
         
         // Prepositions & Structure
-        "Prepositions: Time",
-        "Prepositions: Place",
-        "Prepositions: Position",
-        "Conjunctions",
+        "Prepositions of Time: at, in , on",
+        "Prepositions of Place: at, in , on",
+        "Other Prepositions",
+        "Conjunctions 'and but or so because'",
         "Question Words",
-        "Word Order"
+        "Word Order",
+        "Have got",
     ],
     'A2': [
         // Tenses
@@ -211,15 +220,15 @@ export const grammarPools: Record<Exclude<CEFRLevel, 'A1 ukr'>, string[]> = {
         "Discourse Markers"
     ],
     'C2': [
-        "Advanced conditional forms (e.g., with inversion without 'if')",
-        "Advanced passive structures (e.g., double passives)",
-        "Participle clauses (e.g., fronted participles for stylistic effect)",
-        "Complex noun phrases with multiple modifiers",
-        "Subtle modal verb usage (e.g., 'might have been doing')",
-        "Highly idiomatic phrasing and collocations",
-        "Use of rhetorical devices like inversion for emphasis",
-        "Nuanced use of aspect (perfect vs. continuous)",
-        "Prepositional phrases with abstract nouns",
-        "Advanced discourse markers for cohesion and flow"
+        "Inversion (Advanced)",
+        "Subjunctive Mood (Formal)",
+        "Cleft Sentences (Complex)",
+        "Participle Clauses (Absolute)",
+        "Discourse Markers (Advanced)",
+        "Nominalisation",
+        "Passive (Impersonal structures)",
+        "Emphasis (Fronting)",
+        "Conditionals (Advanced/Mixed)",
+        "Future in the Past (Perfect)"
     ]
 };

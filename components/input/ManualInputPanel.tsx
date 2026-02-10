@@ -32,7 +32,7 @@ const ManualInputPanel: React.FC<ManualInputPanelProps> = ({ quizletData, onData
                     value={quizletData}
                     onChange={(e) => onDataChange(e.target.value)}
                     placeholder={t('inputScreen.textareaPlaceholder')}
-                    className="w-full h-64 p-6 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl shadow-sm focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 focus:outline-none transition-all duration-200 resize-none text-base font-sans text-slate-700 dark:text-slate-300 leading-relaxed"
+                    className="w-full h-64 p-6 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl shadow-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 focus:outline transition-all duration-200 resize-none text-base font-sans text-slate-700 dark:text-slate-300 leading-relaxed"
                     spellCheck={false}
                 />
                 {/* Decorative paper lines hint */}

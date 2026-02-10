@@ -1,3 +1,4 @@
+
 import { CEFRLevel } from '../types';
 
 export const sampleVocabulary: Record<string, string> = {
@@ -56,20 +57,18 @@ scrutinize\tретельно досліджувати
 vulnerable\tвразливий
 unprecedented\tбезпрецедентний`,
 
-    'C2': `epitome\tуособлення
-cacophony\tкакофонія
-alacrity\tготовність, жвавість
-ephemeral\tшвидкоплинний, ефемерний
-obfuscate\tзаплутувати, збивати з пантелику
-serendipity\tінтуїтивна прозорливість
-ubiquitous\tвсюдисущий
-esoteric\tтаємний, езотеричний
-magnanimous\tвеликодушний
-vicarious\tзамісний, чужий (досвід)`,
+    'C2': `nuance\tнюанс
+subtle\tтонкий, ледь помітний
+implication\tпідтекст, наслідок
+eloquent\tкрасномовний
+articulate\tчітко висловлювати
+pervasive\tвсепроникний
+meticulous\tретельний
+substantiate\tобґрунтувати
+disseminate\tпоширювати
+reiterate\tповторювати`,
 };
 
-// Helper to handle the special 'A1 ukr' case or fallbacks
 export const getSampleForLevel = (level: CEFRLevel): string => {
-    if (level === 'A1 ukr') return sampleVocabulary['A1'];
     return sampleVocabulary[level] || sampleVocabulary['B1'];
 };

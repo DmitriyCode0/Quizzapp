@@ -223,7 +223,6 @@
     "version": "Version:",
     "historyTitle": "Version History",
     "recentChanges": "Recent Changes (v{{version}})",
-    "changePresentSimpleToDo": "CONTENT: Added comprehensive guide for 'Present Simple (to do)' with the Anchor metaphor and common mistakes analysis.",
     "uiTweaks": "UI: Added status badges ('NEW', 'BETA') to configuration options for better visibility.",
     "changeGrammarSingleSelect": "UX: Simplified Grammar Selection! You can now select exactly one grammar topic at a time to keep the AI focus sharp.",
     "changeLevelSplit": "UX: Major Update! Separated 'Grammar Level' (what you practice) from 'Student Level' (your general proficiency). You can now practice A1 topics with B2-level vocabulary!",

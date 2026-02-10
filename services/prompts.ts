@@ -486,7 +486,7 @@ export const getEvaluationRubric = (studentLevel: Exclude<CEFRLevel, 'A1 ukr'>):
 **CRITICAL A1 RULES:**
 1. **Focus on Keywords:** If the key nouns and verbs are translated correctly, the score should be high.
 2. **Grammar Exception:** If the student was specifically asked to practice a grammar topic (e.g., "Present Continuous") and fails to use it, the score CANNOT exceed 50%.
-3. **Gibberish Exception:** If the response looks like phonetic gibberish, cap score at 60%.
+
 `;
             rubric = `
 - **Communicative Success (80 pts):** Did the student convey the main idea?
@@ -534,10 +534,10 @@ export const getEvaluationRubric = (studentLevel: Exclude<CEFRLevel, 'A1 ukr'>):
             break;
 
         case 'C1':
-        case 'C2':
+        
             personality = `You are a professor of English Linguistics. You accept nothing less than native-like precision, nuance, and style.`;
             specialInstructions += `
-**CRITICAL C1/C2 RULES:**
+**CRITICAL C1 RULES:**
 1. **Style & Nuance:** Deduct points for "clunky" or "textbook" phrasing. It must sound natural.
 2. **Grammar Perfection:** Zero tolerance for grammar errors.
 `;
